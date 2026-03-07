@@ -25,8 +25,20 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
+from encoder.db import (
+    append_job_log,
+    create_chunk,
+    create_step,
+    init_db,
+    recover_stale_jobs,
+    update_chunk,
+    update_job_status,
+    update_step,
+    create_job,
+)
 from encoder.ffmpeg import FfmpegError, escape_vmaf_path, run_ffmpeg
 
 # ---------------------------------------------------------------------------
@@ -418,7 +430,129 @@ async def run_pipeline(
         output_dir: Destination directory for the final MKV.
         temp_dir: Working directory for intermediates, chunks, and encoded files.
     """
-    raise NotImplementedError
+    source_path = Path(source_path)
+    db_path = str(db_path)
+    output_dir = Path(output_dir)
+    temp_dir = Path(temp_dir)
+
+    chunks_dir = temp_dir / "chunks"
+    encoded_dir = temp_dir / "encoded"
+    intermediate_dir = temp_dir / "intermediate"
+
+    for d in [output_dir, chunks_dir, encoded_dir, intermediate_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    intermediate = intermediate_dir / "intermediate.mov"
+
+    try:
+        await update_job_status(db_path, job_id, "RUNNING")
+
+        _check_cancel(cancel_event)
+
+        # Step 1: FFV1 encode
+        step_id = await create_step(db_path, job_id, "FFV1")
+        print("[FFV1] Encoding intermediate...")
+        t0 = time.monotonic()
+        _ffv1_encode(source_path, intermediate)
+        await update_step(db_path, step_id, "DONE")
+        print(f"[FFV1] done ({time.monotonic() - t0:.0f}s)")
+
+        _check_cancel(cancel_event)
+
+        # Step 2: Scene detect
+        step_id = await create_step(db_path, job_id, "SceneDetect")
+        print("[SceneDetect] Detecting scenes...")
+        t0 = time.monotonic()
+        scene_threshold = config.get("scene_threshold", 27.0)
+        scenes = _detect_scenes(intermediate, scene_threshold)
+        await update_step(db_path, step_id, "DONE")
+        print(f"[SceneDetect] {len(scenes)} scenes, done ({time.monotonic() - t0:.0f}s)")
+
+        _check_cancel(cancel_event)
+
+        # Step 3: Chunk split
+        step_id = await create_step(db_path, job_id, "ChunkSplit")
+        print("[ChunkSplit] Splitting chunks...")
+        t0 = time.monotonic()
+        chunks = _split_chunks(intermediate, scenes, chunks_dir)
+        await update_step(db_path, step_id, "DONE")
+        print(f"[ChunkSplit] {len(chunks)} chunks, done ({time.monotonic() - t0:.0f}s)")
+
+        _check_cancel(cancel_event)
+
+        # Step 4: Audio transcode
+        step_id = await create_step(db_path, job_id, "AudioTranscode")
+        print("[AudioTranscode] Transcoding audio...")
+        t0 = time.monotonic()
+        audio_codec = config.get("audio_codec", "eac3")
+        _flags, audio_ext = AUDIO_CODECS[audio_codec]
+        audio_file = temp_dir / f"audio.{audio_ext}"
+        _transcode_audio(source_path, audio_file, codec=audio_codec)
+        await update_step(db_path, step_id, "DONE")
+        print(f"[AudioTranscode] done ({time.monotonic() - t0:.0f}s)")
+
+        _check_cancel(cancel_event)
+
+        # Steps 5-7: Per-chunk CRF+VMAF feedback loop
+        total = len(chunks)
+        encoded_chunks = []
+        for i, chunk_in in enumerate(chunks, 1):
+            _check_cancel(cancel_event)
+            chunk_out = encoded_dir / chunk_in.name
+            chunk_id = await create_chunk(db_path, job_id, i - 1)
+            chunk_label = f"Chunk {i}/{total}"
+            crf, vmaf, iters = _encode_chunk_with_vmaf(
+                chunk_in, chunk_out, config, cancel_event, chunk_label
+            )
+            await update_chunk(
+                db_path,
+                chunk_id,
+                crf_used=float(crf),
+                vmaf_score=vmaf,
+                iterations=iters,
+                status="DONE",
+            )
+            await append_job_log(
+                db_path, job_id,
+                f"[{chunk_label}] CRF {crf} -> VMAF {vmaf:.2f} ({iters} iter)"
+            )
+            encoded_chunks.append(chunk_out)
+
+        _check_cancel(cancel_event)
+
+        # Step 8: Concat
+        step_id = await create_step(db_path, job_id, "Concat")
+        print("[Concat] Concatenating chunks...")
+        t0 = time.monotonic()
+        concat_mp4 = temp_dir / "concat.mp4"
+        concat_list = temp_dir / "concat_list.txt"
+        _write_concat_list(encoded_chunks, concat_list)
+        _concat_chunks(concat_list, concat_mp4)
+        await update_step(db_path, step_id, "DONE")
+        print(f"[Concat] done ({time.monotonic() - t0:.0f}s)")
+
+        _check_cancel(cancel_event)
+
+        # Step 9: Mux
+        step_id = await create_step(db_path, job_id, "Mux")
+        print("[Mux] Muxing video and audio...")
+        t0 = time.monotonic()
+        output_mkv = output_dir / (source_path.stem + ".mkv")
+        _mux_video_audio(concat_mp4, audio_file, output_mkv)
+        await update_step(db_path, step_id, "DONE")
+        print(f"[Mux] done ({time.monotonic() - t0:.0f}s)")
+
+        await update_job_status(db_path, job_id, "DONE")
+        print(f"[Done] Output: {output_mkv}")
+
+    except PipelineError as e:
+        status = getattr(e, "status", "FAILED")
+        await update_job_status(db_path, job_id, status)
+        if status != "CANCELLED":
+            raise
+    finally:
+        # Step 10: Cleanup — always, regardless of outcome
+        _cleanup(temp_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +564,8 @@ def _cli() -> None:
     """Command-line interface: python -m encoder.pipeline source.mkv [options]"""
     import argparse
     import asyncio
+    import signal
+    import threading
 
     parser = argparse.ArgumentParser(description="Encode a source MKV through the full pipeline.")
     parser.add_argument("source", help="Path to source MKV file")
@@ -439,29 +575,43 @@ def _cli() -> None:
     parser.add_argument("--scene-threshold", type=float, default=27.0, help="Scene detection threshold (default: 27)")
     args = parser.parse_args()
 
-    import json
-    import threading
-
     config = dict(DEFAULT_CONFIG)
     if args.config:
         with open(args.config) as f:
             config.update(json.load(f))
 
+    # Merge CLI scene-threshold into config
+    config["scene_threshold"] = args.scene_threshold
+
     cancel_event = threading.Event()
 
-    db_path = Path(args.temp_dir) / "encoder.db"
+    # SIGINT (Ctrl+C) sets cancel_event — pipeline polls between steps and cleans up
+    def _sigint_handler(signum, frame):
+        print("\n[Interrupted] Cancelling pipeline...")
+        cancel_event.set()
 
-    asyncio.run(
-        run_pipeline(
+    signal.signal(signal.SIGINT, _sigint_handler)
+
+    output_dir = Path(args.output_dir)
+    temp_dir = Path(args.temp_dir)
+    db_path = temp_dir / "encoder.db"
+
+    async def _main():
+        # Ensure DB exists and recover stale jobs from previous runs
+        await init_db(str(db_path))
+        await recover_stale_jobs(str(db_path))
+        job_id = await create_job(str(db_path), str(args.source), config)
+        await run_pipeline(
             source_path=Path(args.source),
             db_path=db_path,
-            job_id=0,
+            job_id=job_id,
             config=config,
             cancel_event=cancel_event,
-            output_dir=Path(args.output_dir),
-            temp_dir=Path(args.temp_dir),
+            output_dir=output_dir,
+            temp_dir=temp_dir,
         )
-    )
+
+    asyncio.run(_main())
 
 
 if __name__ == "__main__":
