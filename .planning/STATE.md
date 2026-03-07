@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 02-01-PLAN.md"
-last_updated: "2026-03-07T17:47:00.000Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-07T21:11:57.415Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
   percent: 10
 ---
 
@@ -52,6 +52,7 @@ Progress: [██░░░░░░░░] 10%
 *Updated after each plan completion*
 | Phase 01-subprocess-foundation P03 | 3 | 1 tasks | 1 files |
 | Phase 01-subprocess-foundation P02 | 5 | 1 tasks | 1 files |
+| Phase 02-sqlite-state-layer P02 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [02-01]: HEARTBEAT_STALE_SECONDS=60 exported as module-level constant so tests and callers reference threshold symbolically
 - [02-01]: update_chunk uses keyword-only args after chunk_id to prevent positional argument errors at call sites
 - [02-01]: All 15 stubs raise NotImplementedError immediately, ensuring no stub is accidentally permissive at RED stage
+- [Phase 02-02]: executescript() for DDL only; db.execute() for DML preserves row_factory in aiosqlite 0.22.x
+- [Phase 02-02]: In-DB log concat (log = log || ?) avoids read-modify-write race in append_job_log()
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T17:47:00Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: .planning/phases/02-sqlite-state-layer/02-02-PLAN.md
+Last session: 2026-03-07T21:11:57.412Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: None
