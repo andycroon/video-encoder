@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 01-subprocess-foundation/01-01-PLAN.md
-last_updated: "2026-03-07T16:51:00Z"
-last_activity: 2026-03-07 — Plan 01-01 complete: project scaffold + PIPE-10 test specs (RED state)
+status: executing
+stopped_at: Completed 01-subprocess-foundation/01-03-PLAN.md
+last_updated: "2026-03-07T16:55:52.645Z"
+last_activity: "2026-03-07 — Plan 01-01 complete: project scaffold + PIPE-10 test specs (RED state)"
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 2
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
   percent: 5
 ---
 
@@ -50,6 +50,7 @@ Progress: [█░░░░░░░░░] 5%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01-subprocess-foundation P03 | 3 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,7 @@ Recent decisions affecting current work:
 - [01-01]: setuptools.build_meta used as build backend (not legacy backend — unavailable during editable install on this machine)
 - [01-01]: gen.cancel() API contract established — Plan 02 must expose .cancel() on the object returned by run_ffmpeg()
 - [01-01]: C:\Python313\python.exe uses project root as prefix; pip installs to Lib/ and Scripts/ in project root; added to .gitignore
+- [Phase 01-subprocess-foundation]: README built incrementally per-phase: Phase 1 owns prerequisites, later phases append their own sections
 
 ### Pending Todos
 
@@ -90,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T16:51:00Z
-Stopped at: Completed 01-subprocess-foundation/01-01-PLAN.md
-Resume file: .planning/phases/01-subprocess-foundation/01-02-PLAN.md
+Last session: 2026-03-07T16:55:52.642Z
+Stopped at: Completed 01-subprocess-foundation/01-03-PLAN.md
+Resume file: None

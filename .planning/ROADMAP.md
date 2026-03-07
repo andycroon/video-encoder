@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Subprocess Foundation | 1/3 | In Progress|  |
+| 1. Subprocess Foundation | 2/3 | In Progress|  |
 | 2. SQLite State Layer | 0/? | Not started | - |
 | 3. Pipeline Runner | 0/? | Not started | - |
 | 4. Web API + Scheduler | 0/? | Not started | - |
