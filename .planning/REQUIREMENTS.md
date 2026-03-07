@@ -16,7 +16,7 @@
 - [ ] **PIPE-07**: System adjusts CRF ±1 and re-encodes chunk if VMAF score is outside configured [vmafMin, vmafMax] range, within configured [crfMin, crfMax] bounds
 - [ ] **PIPE-08**: System concatenates all encoded chunks and muxes with audio into final MKV
 - [ ] **PIPE-09**: System cleans up temp files (FFV1 intermediate, chunks, encoded chunks) after job completes or is cancelled
-- [ ] **PIPE-10**: System runs cross-platform (Windows and Linux) with no OS-specific dependencies
+- [x] **PIPE-10**: System runs cross-platform (Windows and Linux) with no OS-specific dependencies
 
 ### Job Queue
 
@@ -91,7 +91,7 @@
 | PIPE-07 | Phase 3: Pipeline Runner | Pending |
 | PIPE-08 | Phase 3: Pipeline Runner | Pending |
 | PIPE-09 | Phase 3: Pipeline Runner | Pending |
-| PIPE-10 | Phase 1: Subprocess Foundation | Pending |
+| PIPE-10 | Phase 1: Subprocess Foundation | Complete |
 | QUEUE-01 | Phase 5: React UI | Pending |
 | QUEUE-02 | Phase 5: React UI | Pending |
 | QUEUE-03 | Phase 5: React UI | Pending |
