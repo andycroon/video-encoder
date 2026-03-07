@@ -66,15 +66,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: TBD
 
 ### Phase 5: React UI
-**Goal**: Every queue management action, progress indicator, and configuration option is accessible in the browser without any command-line interaction
+**Goal**: Every queue management action, progress indicator, and configuration option is accessible in the browser without any command-line interaction; project is fully documented for installation and use
 **Depends on**: Phase 4
-**Requirements**: QUEUE-01, QUEUE-02, QUEUE-03, QUEUE-04, PROG-01, PROG-02, PROG-03, PROG-04
+**Requirements**: QUEUE-01, QUEUE-02, QUEUE-03, QUEUE-04, PROG-01, PROG-02, PROG-03, PROG-04, DOC-01
 **Success Criteria** (what must be TRUE):
   1. A user can add a job by typing a file path in the UI, see it appear in the queue with QUEUED status, and watch it transition through named pipeline stages (FFV1 encode, scene detect, chunk split, audio transcode, chunk encode N/total, merge, mux, cleanup) in real time
   2. Per-chunk VMAF scores and final CRF values appear live in the UI as each chunk completes, without a page refresh
   3. A user can pause an active job, cancel it (with confirmation), and retry a failed job — all from the job list — and see the job state update immediately
   4. A user can expand the ffmpeg log panel for any job and read the full captured stderr output
   5. Estimated time remaining is displayed for active jobs and updates as chunk throughput data accumulates
+  6. README.md covers installation (ffmpeg, scenedetect, Python deps, VMAF models), all configurable settings, and a getting-started usage guide
 **Plans**: TBD
 
 ## Progress

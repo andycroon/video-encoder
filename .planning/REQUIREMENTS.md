@@ -44,6 +44,10 @@
 - [ ] **CONF-05**: User can configure global defaults (VMAF range, CRF bounds, audio codec, output path, temp path) in a settings panel
 - [ ] **CONF-06**: User can configure watch folder path in settings
 
+### Documentation
+
+- [ ] **DOC-01**: Project includes a detailed README.md with installation instructions (ffmpeg, scenedetect, Python deps, VMAF models in assets/), configuration reference (all settings, paths, VMAF/CRF parameters), and usage guide
+
 ## v2 Requirements
 
 ### File Input
@@ -105,10 +109,11 @@
 | CONF-04 | Phase 3: Pipeline Runner | Pending |
 | CONF-05 | Phase 4: Web API + Scheduler | Pending |
 | CONF-06 | Phase 4: Web API + Scheduler | Pending |
+| DOC-01 | Phase 5: React UI | Pending |
 
 **Coverage:**
-- v1 requirements: 27 total
-- Mapped to phases: 27
+- v1 requirements: 28 total
+- Mapped to phases: 28
 - Unmapped: 0 ✓
 
 ---
