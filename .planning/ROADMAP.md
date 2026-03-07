@@ -12,7 +12,7 @@ The build order is strictly bottom-up: validate cross-platform subprocess execut
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Subprocess Foundation** - Cross-platform ffmpeg subprocess wrapper with progress parsing and graceful cancellation
+- [x] **Phase 1: Subprocess Foundation** - Cross-platform ffmpeg subprocess wrapper with progress parsing and graceful cancellation (completed 2026-03-07)
 - [ ] **Phase 2: SQLite State Layer** - Durable job state schema with WAL mode and tested CRUD functions
 - [ ] **Phase 3: Pipeline Runner** - Complete 10-step encoding pipeline as a CLI with VMAF CRF feedback loop
 - [ ] **Phase 4: Web API + Scheduler** - FastAPI REST + SSE endpoints, asyncio job scheduler, watch folder, global config
@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Subprocess Foundation | 2/3 | In Progress|  |
+| 1. Subprocess Foundation | 3/3 | Complete   | 2026-03-07 |
 | 2. SQLite State Layer | 0/? | Not started | - |
 | 3. Pipeline Runner | 0/? | Not started | - |
 | 4. Web API + Scheduler | 0/? | Not started | - |
