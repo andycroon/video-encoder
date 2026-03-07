@@ -132,9 +132,8 @@ AUDIO_CODECS: dict = {
 
 def _audio_cmd(ffmpeg_bin: str, source_path: Path, output_path: Path, codec: str) -> list:
     """Build full ffmpeg command for audio transcoding."""
-    flags, ext = AUDIO_CODECS[codec]
-    final_out = output_path.with_suffix(f".{ext}")
-    return [ffmpeg_bin, "-y", "-i", str(source_path), "-vn"] + flags + [str(final_out)]
+    flags, _ext = AUDIO_CODECS[codec]
+    return [ffmpeg_bin, "-y", "-i", str(source_path), "-vn"] + flags + [str(output_path)]
 
 
 def _split_chunks(ffv1_path: Path, timestamps: list[float], chunks_dir: Path) -> list[Path]:
@@ -174,9 +173,8 @@ def _split_chunks(ffv1_path: Path, timestamps: list[float], chunks_dir: Path) ->
 
 def _transcode_audio(source_path: Path, output_path: Path, codec: str = "eac3") -> None:
     """Transcode audio track from source to target codec."""
-    flags, ext = AUDIO_CODECS[codec]
-    final_out = output_path.with_suffix(f".{ext}")
-    cmd = [FFMPEG, "-y", "-i", str(source_path), "-vn"] + flags + [str(final_out)]
+    flags, _ext = AUDIO_CODECS[codec]
+    cmd = [FFMPEG, "-y", "-i", str(source_path), "-vn"] + flags + [str(output_path)]
     try:
         proc = run_ffmpeg(cmd)
         for _ in proc:
