@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-07T21:14:04.387Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-07T22:22:15.930Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 9
+  completed_plans: 6
   percent: 10
 ---
 
@@ -53,6 +53,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 01-subprocess-foundation P03 | 3 | 1 tasks | 1 files |
 | Phase 01-subprocess-foundation P02 | 5 | 1 tasks | 1 files |
 | Phase 02-sqlite-state-layer P02 | 2 | 2 tasks | 2 files |
+| Phase 03-pipeline-runner P01 | 6 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [02-01]: All 15 stubs raise NotImplementedError immediately, ensuring no stub is accidentally permissive at RED stage
 - [Phase 02-02]: executescript() for DDL only; db.execute() for DML preserves row_factory in aiosqlite 0.22.x
 - [Phase 02-02]: In-DB log concat (log = log || ?) avoids read-modify-write race in append_job_log()
+- [Phase 03-pipeline-runner]: scenedetect[opencv]>=0.6.7,<0.7 placed in [project] dependencies (not dev) — runtime dependency for Phase 3 pipeline code
+- [Phase 03-pipeline-runner]: All private helper stubs raise NotImplementedError immediately — no stub is accidentally permissive at RED stage
+- [Phase 03-pipeline-runner]: DEFAULT_CONFIG x264_params values are strings (not int/float) to preserve exact ffmpeg flag format (e.g. '12000K', '-loop', '0.50')
 
 ### Pending Todos
 
@@ -104,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T21:11:57.412Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-07T22:22:15.926Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None

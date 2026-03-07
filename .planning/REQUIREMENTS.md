@@ -7,15 +7,15 @@
 
 ### Pipeline
 
-- [ ] **PIPE-01**: System encodes source MKV to FFV1 lossless intermediate via ffmpeg
-- [ ] **PIPE-02**: System detects scene boundaries using PySceneDetect (pin >=0.6.7,<0.7)
-- [ ] **PIPE-03**: System splits FFV1 intermediate into scene-boundary chunks via ffmpeg
-- [ ] **PIPE-04**: System extracts and transcodes audio to user-selected codec (EAC3, AAC, FLAC, or copy) via ffmpeg
-- [ ] **PIPE-05**: System encodes each chunk with libx264 using configurable encoding parameters
-- [ ] **PIPE-06**: System scores each encoded chunk against FFV1 source using VMAF (libvmaf) with models from the bundled assets/ directory
-- [ ] **PIPE-07**: System adjusts CRF ±1 and re-encodes chunk if VMAF score is outside configured [vmafMin, vmafMax] range, within configured [crfMin, crfMax] bounds
-- [ ] **PIPE-08**: System concatenates all encoded chunks and muxes with audio into final MKV
-- [ ] **PIPE-09**: System cleans up temp files (FFV1 intermediate, chunks, encoded chunks) after job completes or is cancelled
+- [x] **PIPE-01**: System encodes source MKV to FFV1 lossless intermediate via ffmpeg
+- [x] **PIPE-02**: System detects scene boundaries using PySceneDetect (pin >=0.6.7,<0.7)
+- [x] **PIPE-03**: System splits FFV1 intermediate into scene-boundary chunks via ffmpeg
+- [x] **PIPE-04**: System extracts and transcodes audio to user-selected codec (EAC3, AAC, FLAC, or copy) via ffmpeg
+- [x] **PIPE-05**: System encodes each chunk with libx264 using configurable encoding parameters
+- [x] **PIPE-06**: System scores each encoded chunk against FFV1 source using VMAF (libvmaf) with models from the bundled assets/ directory
+- [x] **PIPE-07**: System adjusts CRF ±1 and re-encodes chunk if VMAF score is outside configured [vmafMin, vmafMax] range, within configured [crfMin, crfMax] bounds
+- [x] **PIPE-08**: System concatenates all encoded chunks and muxes with audio into final MKV
+- [x] **PIPE-09**: System cleans up temp files (FFV1 intermediate, chunks, encoded chunks) after job completes or is cancelled
 - [x] **PIPE-10**: System runs cross-platform (Windows and Linux) with no OS-specific dependencies
 
 ### Job Queue
@@ -37,10 +37,10 @@
 
 ### Configuration
 
-- [ ] **CONF-01**: User can set VMAF target range (vmafMin / vmafMax) per job (default: 96.2–97.6)
-- [ ] **CONF-02**: User can set CRF bounds (crfMin / crfMax) per job (default: 16–20, starting CRF: 17)
-- [ ] **CONF-03**: User can select audio codec per job (EAC3, AAC, FLAC, copy)
-- [ ] **CONF-04**: User can select video encoding preset per job with the 1080p H.264 default exposing current script parameters (partitions=i4x4+p8x8+b8x8, trellis 2, deblock -3:-3, b_qfactor 1, i_qfactor 0.71, qcomp 0.50, maxrate 12000K, bufsize 24000k, qmax 40, subq 10, me_method umh, me_range 24, b_strategy 2, bf 2, sc_threshold 0, g 48, keyint_min 48, -flags -loop)
+- [x] **CONF-01**: User can set VMAF target range (vmafMin / vmafMax) per job (default: 96.2–97.6)
+- [x] **CONF-02**: User can set CRF bounds (crfMin / crfMax) per job (default: 16–20, starting CRF: 17)
+- [x] **CONF-03**: User can select audio codec per job (EAC3, AAC, FLAC, copy)
+- [x] **CONF-04**: User can select video encoding preset per job with the 1080p H.264 default exposing current script parameters (partitions=i4x4+p8x8+b8x8, trellis 2, deblock -3:-3, b_qfactor 1, i_qfactor 0.71, qcomp 0.50, maxrate 12000K, bufsize 24000k, qmax 40, subq 10, me_method umh, me_range 24, b_strategy 2, bf 2, sc_threshold 0, g 48, keyint_min 48, -flags -loop)
 - [ ] **CONF-05**: User can configure global defaults (VMAF range, CRF bounds, audio codec, output path, temp path) in a settings panel
 - [ ] **CONF-06**: User can configure watch folder path in settings
 
@@ -82,15 +82,15 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 | Phase 3: Pipeline Runner | Pending |
-| PIPE-02 | Phase 3: Pipeline Runner | Pending |
-| PIPE-03 | Phase 3: Pipeline Runner | Pending |
-| PIPE-04 | Phase 3: Pipeline Runner | Pending |
-| PIPE-05 | Phase 3: Pipeline Runner | Pending |
-| PIPE-06 | Phase 3: Pipeline Runner | Pending |
-| PIPE-07 | Phase 3: Pipeline Runner | Pending |
-| PIPE-08 | Phase 3: Pipeline Runner | Pending |
-| PIPE-09 | Phase 3: Pipeline Runner | Pending |
+| PIPE-01 | Phase 3: Pipeline Runner | Complete |
+| PIPE-02 | Phase 3: Pipeline Runner | Complete |
+| PIPE-03 | Phase 3: Pipeline Runner | Complete |
+| PIPE-04 | Phase 3: Pipeline Runner | Complete |
+| PIPE-05 | Phase 3: Pipeline Runner | Complete |
+| PIPE-06 | Phase 3: Pipeline Runner | Complete |
+| PIPE-07 | Phase 3: Pipeline Runner | Complete |
+| PIPE-08 | Phase 3: Pipeline Runner | Complete |
+| PIPE-09 | Phase 3: Pipeline Runner | Complete |
 | PIPE-10 | Phase 1: Subprocess Foundation | Complete |
 | QUEUE-01 | Phase 5: React UI | Pending |
 | QUEUE-02 | Phase 5: React UI | Pending |
@@ -103,10 +103,10 @@
 | PROG-03 | Phase 5: React UI | Pending |
 | PROG-04 | Phase 5: React UI | Pending |
 | PROG-05 | Phase 4: Web API + Scheduler | Pending |
-| CONF-01 | Phase 3: Pipeline Runner | Pending |
-| CONF-02 | Phase 3: Pipeline Runner | Pending |
-| CONF-03 | Phase 3: Pipeline Runner | Pending |
-| CONF-04 | Phase 3: Pipeline Runner | Pending |
+| CONF-01 | Phase 3: Pipeline Runner | Complete |
+| CONF-02 | Phase 3: Pipeline Runner | Complete |
+| CONF-03 | Phase 3: Pipeline Runner | Complete |
+| CONF-04 | Phase 3: Pipeline Runner | Complete |
 | CONF-05 | Phase 4: Web API + Scheduler | Pending |
 | CONF-06 | Phase 4: Web API + Scheduler | Pending |
 | DOC-01 | Phase 5: React UI | Pending |
