@@ -76,20 +76,41 @@
 
 ## Traceability
 
-Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 through PIPE-10 | — | Pending |
-| QUEUE-01 through QUEUE-06 | — | Pending |
-| PROG-01 through PROG-05 | — | Pending |
-| CONF-01 through CONF-06 | — | Pending |
+| PIPE-01 | Phase 3: Pipeline Runner | Pending |
+| PIPE-02 | Phase 3: Pipeline Runner | Pending |
+| PIPE-03 | Phase 3: Pipeline Runner | Pending |
+| PIPE-04 | Phase 3: Pipeline Runner | Pending |
+| PIPE-05 | Phase 3: Pipeline Runner | Pending |
+| PIPE-06 | Phase 3: Pipeline Runner | Pending |
+| PIPE-07 | Phase 3: Pipeline Runner | Pending |
+| PIPE-08 | Phase 3: Pipeline Runner | Pending |
+| PIPE-09 | Phase 3: Pipeline Runner | Pending |
+| PIPE-10 | Phase 1: Subprocess Foundation | Pending |
+| QUEUE-01 | Phase 5: React UI | Pending |
+| QUEUE-02 | Phase 5: React UI | Pending |
+| QUEUE-03 | Phase 5: React UI | Pending |
+| QUEUE-04 | Phase 5: React UI | Pending |
+| QUEUE-05 | Phase 2: SQLite State Layer | Pending |
+| QUEUE-06 | Phase 4: Web API + Scheduler | Pending |
+| PROG-01 | Phase 5: React UI | Pending |
+| PROG-02 | Phase 5: React UI | Pending |
+| PROG-03 | Phase 5: React UI | Pending |
+| PROG-04 | Phase 5: React UI | Pending |
+| PROG-05 | Phase 4: Web API + Scheduler | Pending |
+| CONF-01 | Phase 3: Pipeline Runner | Pending |
+| CONF-02 | Phase 3: Pipeline Runner | Pending |
+| CONF-03 | Phase 3: Pipeline Runner | Pending |
+| CONF-04 | Phase 3: Pipeline Runner | Pending |
+| CONF-05 | Phase 4: Web API + Scheduler | Pending |
+| CONF-06 | Phase 4: Web API + Scheduler | Pending |
 
 **Coverage:**
-- v1 requirements: 26 total
-- Mapped to phases: 0
-- Unmapped: 26 ⚠️
+- v1 requirements: 27 total
+- Mapped to phases: 27
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-07*
-*Last updated: 2026-03-07 after initial definition*
+*Last updated: 2026-03-07 after roadmap creation — traceability complete*
