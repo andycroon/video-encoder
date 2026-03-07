@@ -108,3 +108,29 @@ pytest tests/ -v
 Tests use real ffmpeg with lavfi synthetic sources — no binary test assets are committed to the repo. Ensure ffmpeg is on PATH (or placed at `C:\ffmpeg\ffmpeg.exe` on Windows) before running tests.
 
 Expected runtime: ~20 seconds.
+
+---
+
+## Database
+
+### File Location
+
+`encoder.db` is created in the current working directory by default. The path is passed as a parameter to all `db.py` functions; Phase 4 will expose it as a configurable setting. During testing, pytest uses a temporary directory (`tmp_path`) so no `encoder.db` is left in the project root after a test run.
+
+### State Persistence
+
+SQLite WAL (Write-Ahead Logging) mode is enabled on every connection. WAL mode persists at the file level — once set, all subsequent connections see WAL mode automatically.
+
+A job's full lifecycle (`QUEUED` → `RUNNING` → `DONE` / `FAILED` / `CANCELLED`) is stored in the `jobs` table. Per-chunk VMAF scores and CRF values are stored in the `chunks` table. Pipeline stage progress (FFV1 encode, scene detect, chunk split, audio extraction, concat, mux) is stored in the `steps` table.
+
+All state survives application restarts. Jobs left in `RUNNING` state with a stale heartbeat (no update for more than 60 seconds) are automatically reset to `QUEUED` at startup via `recover_stale_jobs()`.
+
+### Resetting the Database
+
+Delete the database file and its WAL companions:
+
+```bash
+rm encoder.db encoder.db-wal encoder.db-shm
+```
+
+The next application start recreates the schema automatically via `init_db()`.
