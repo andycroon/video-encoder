@@ -21,7 +21,10 @@ Entry points:
 from __future__ import annotations
 
 import shutil
+import subprocess
 from pathlib import Path
+
+from encoder.ffmpeg import FfmpegError, run_ffmpeg
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -84,7 +87,20 @@ DEFAULT_CONFIG: dict = {
 
 def _ffv1_encode(source_path: Path, output_path: Path) -> None:
     """Encode source to FFV1 lossless intermediate."""
-    raise NotImplementedError
+    cmd = [
+        FFMPEG, "-y", "-i", str(source_path),
+        "-sn", "-an",
+        "-c:v", "ffv1", "-level", "3", "-threads", "4",
+        "-coder", "1", "-context", "1", "-slicecrc", "1",
+        "-slices", "24", "-g", "1",
+        str(output_path),
+    ]
+    try:
+        proc = run_ffmpeg(cmd)
+        for _ in proc:
+            pass
+    except FfmpegError as e:
+        raise PipelineError(f"FFV1 encode failed: {e}") from e
 
 
 def _detect_scenes(source_path: Path, threshold: float = 27.0) -> list[float]:
@@ -92,17 +108,81 @@ def _detect_scenes(source_path: Path, threshold: float = 27.0) -> list[float]:
 
     Raises PipelineError if no scenes are detected.
     """
-    raise NotImplementedError
+    from scenedetect import ContentDetector, detect
+
+    scenes = detect(str(source_path), ContentDetector(threshold=threshold))
+    if not scenes:
+        raise PipelineError(f"No scenes detected in {source_path}")
+    # scenes[0] starts at 0 — skip it; return start times of subsequent scenes
+    boundaries = [scene[0].get_seconds() for scene in scenes[1:]]
+    return boundaries
+
+
+# ---------------------------------------------------------------------------
+# Audio codec dispatch table
+# ---------------------------------------------------------------------------
+
+AUDIO_CODECS: dict = {
+    "eac3": (["-c:a", "eac3"], "eac3"),
+    "aac":  (["-c:a", "aac"],  "m4a"),
+    "flac": (["-c:a", "flac"], "flac"),
+    "copy": (["-c:a", "copy"], "mka"),
+}
+
+
+def _audio_cmd(ffmpeg_bin: str, source_path: Path, output_path: Path, codec: str) -> list:
+    """Build full ffmpeg command for audio transcoding."""
+    flags, ext = AUDIO_CODECS[codec]
+    final_out = output_path.with_suffix(f".{ext}")
+    return [ffmpeg_bin, "-y", "-i", str(source_path), "-vn"] + flags + [str(final_out)]
 
 
 def _split_chunks(ffv1_path: Path, timestamps: list[float], chunks_dir: Path) -> list[Path]:
     """Split FFV1 intermediate into per-scene chunk files."""
-    raise NotImplementedError
+    chunk_pattern = str(chunks_dir / "chunk%06d.mov")
+
+    if timestamps:
+        segment_times = ",".join(f"{t:.6f}" for t in timestamps)
+        cmd = [
+            FFMPEG, "-y", "-i", str(ffv1_path),
+            "-c:v", "copy", "-an",
+            "-f", "segment",
+            "-segment_times", segment_times,
+            "-reset_timestamps", "1",
+            chunk_pattern,
+        ]
+    else:
+        # Single scene — copy whole file as chunk000000.mov
+        cmd = [
+            FFMPEG, "-y", "-i", str(ffv1_path),
+            "-c:v", "copy", "-an",
+            str(chunks_dir / "chunk000000.mov"),
+        ]
+
+    try:
+        proc = run_ffmpeg(cmd)
+        for _ in proc:
+            pass
+    except FfmpegError as e:
+        raise PipelineError(f"Chunk split failed: {e}") from e
+
+    chunks = sorted(chunks_dir.glob("chunk*.mov"))
+    if not chunks:
+        raise PipelineError("No chunks produced by chunk split")
+    return chunks
 
 
 def _transcode_audio(source_path: Path, output_path: Path, codec: str = "eac3") -> None:
     """Transcode audio track from source to target codec."""
-    raise NotImplementedError
+    flags, ext = AUDIO_CODECS[codec]
+    final_out = output_path.with_suffix(f".{ext}")
+    cmd = [FFMPEG, "-y", "-i", str(source_path), "-vn"] + flags + [str(final_out)]
+    try:
+        proc = run_ffmpeg(cmd)
+        for _ in proc:
+            pass
+    except FfmpegError as e:
+        raise PipelineError(f"Audio transcode failed: {e}") from e
 
 
 def _encode_chunk_x264(

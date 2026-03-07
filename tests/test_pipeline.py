@@ -84,12 +84,9 @@ def _make_video_with_cut(ffmpeg: str, out_path: Path) -> Path:
         [
             ffmpeg,
             "-y",
-            "-f", "lavfi",
-            "-i", (
-                "testsrc2=duration=1.5:size=320x240:rate=24[v1];"
-                "mandelbrot=size=320x240:rate=24[v2];"
-                "[v1][v2]concat=n=2:v=1:a=0[out]"
-            ),
+            "-f", "lavfi", "-i", "testsrc2=duration=1.5:size=320x240:rate=24",
+            "-f", "lavfi", "-i", "color=c=red:size=320x240:rate=24:duration=1.5",
+            "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[out]",
             "-map", "[out]",
             "-c:v", "ffv1",
             str(out_path),
