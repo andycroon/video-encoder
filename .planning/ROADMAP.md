@@ -64,7 +64,13 @@ Plans:
   4. Audio is transcoded to the configured codec (EAC3, AAC, FLAC, or copy) and present in the final MKV
   5. The pipeline runs identically on Windows and Linux with configurable VMAF range, CRF bounds, audio codec, and x264 preset parameters
   6. README.md updated with: all pipeline configuration parameters (VMAF range, CRF bounds, audio codec options, full x264 preset parameter reference, output/temp path config)
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Test scaffold (14 RED stubs) + pipeline.py skeleton + scenedetect dep
+- [ ] 03-02-PLAN.md — Implement steps 1-4: FFV1 encode, scene detect, chunk split, audio transcode (6 GREEN)
+- [ ] 03-03-PLAN.md — Implement steps 5-7: x264 encode, VMAF scoring, CRF feedback loop (11 GREEN)
+- [ ] 03-04-PLAN.md — Implement steps 8-10: concat, mux, cleanup + run_pipeline orchestrator + CLI + README
 
 ### Phase 4: Web API + Scheduler
 **Goal**: All pipeline capabilities are accessible via HTTP — job submission, pause, cancel, retry, watch folder auto-enqueueing, SSE progress streaming, and global configuration — testable with curl and browser DevTools before the React UI exists
@@ -100,6 +106,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Subprocess Foundation | 3/3 | Complete   | 2026-03-07 |
 | 2. SQLite State Layer | 2/2 | Complete   | 2026-03-07 |
-| 3. Pipeline Runner | 0/? | Not started | - |
+| 3. Pipeline Runner | 0/4 | Not started | - |
 | 4. Web API + Scheduler | 0/? | Not started | - |
 | 5. React UI | 0/? | Not started | - |
