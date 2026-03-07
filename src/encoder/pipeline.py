@@ -20,11 +20,14 @@ Entry points:
 
 from __future__ import annotations
 
+import json
+import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
-from encoder.ffmpeg import FfmpegError, run_ffmpeg
+from encoder.ffmpeg import FfmpegError, escape_vmaf_path, run_ffmpeg
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -209,7 +212,62 @@ def _encode_chunk_x264(
 
 def _vmaf_score(encoded_path: Path, reference_path: Path) -> float:
     """Return VMAF score (0–100) for encoded chunk compared against FFV1 reference."""
-    raise NotImplementedError
+    import os
+    log_fd, log_path_str = tempfile.mkstemp(suffix=".json")
+    os.close(log_fd)
+    log_path = Path(log_path_str)
+    try:
+        escaped_log = escape_vmaf_path(log_path)
+        # Use built-in model version string to avoid Windows path escaping issues.
+        # The ffmpeg build has vmaf_v0.6.1 compiled in; model='path=...' syntax
+        # fails on Windows due to colon-in-path parsing in lavfi filter strings.
+        filter_graph = (
+            "[0:v]setpts=PTS-STARTPTS,format=yuv420p[dist];"
+            "[1:v]setpts=PTS-STARTPTS,format=yuv420p[ref];"
+            f"[dist][ref]libvmaf=model='version=vmaf_v0.6.1'"
+            f":log_fmt=json:log_path='{escaped_log}':n_threads=4"
+        )
+        cmd = [FFMPEG, "-y",
+               "-i", str(encoded_path),
+               "-i", str(reference_path),
+               "-lavfi", filter_graph,
+               "-f", "null", "-"]
+        proc = run_ffmpeg(cmd)
+        for _ in proc:
+            pass
+
+        vmaf: float | None = None
+
+        # Try pooled_metrics from JSON log
+        if log_path.exists() and log_path.stat().st_size > 0:
+            try:
+                with open(log_path) as f:
+                    data = json.load(f)
+                vmaf = data["pooled_metrics"]["vmaf"]["mean"]
+            except (KeyError, json.JSONDecodeError):
+                # Fallback: average frames
+                try:
+                    frames = data.get("frames", [])
+                    if frames:
+                        scores = [fr["metrics"]["vmaf"] for fr in frames]
+                        vmaf = sum(scores) / len(scores)
+                except (KeyError, TypeError):
+                    pass
+
+        # Fallback: stderr regex
+        if vmaf is None:
+            for line in proc.stderr_lines:
+                m = re.search(r"VMAF score:\s*([\d.]+)", line)
+                if m:
+                    vmaf = float(m.group(1))
+                    break
+
+        if vmaf is None:
+            raise PipelineError("VMAF score could not be determined from log or stderr")
+
+        return float(vmaf)
+    finally:
+        log_path.unlink(missing_ok=True)
 
 
 def _encode_chunk_with_vmaf(
@@ -217,13 +275,54 @@ def _encode_chunk_with_vmaf(
     encoded_path: Path,
     config: dict,
     cancel_event=None,
+    chunk_label: str = "chunk",
 ) -> tuple[int, float, int]:
     """Run the CRF feedback loop for a single chunk.
 
     Returns (final_crf, final_vmaf, iterations).
-    Raises PipelineError if CRF bounds are exhausted without hitting target range.
     """
-    raise NotImplementedError
+    crf: int = config["crf_start"]
+    vmaf_min: float = config["vmaf_min"]
+    vmaf_max: float = config["vmaf_max"]
+    crf_min: int = config["crf_min"]
+    crf_max: int = config["crf_max"]
+
+    visited_crfs: set[int] = set()
+    best_crf: int = crf
+    best_vmaf: float = 0.0
+    status: str = "pass"
+
+    for i in range(10):
+        _check_cancel(cancel_event)
+
+        _encode_chunk_x264(chunk_path, encoded_path, crf, config)
+        vmaf = _vmaf_score(encoded_path, chunk_path)
+
+        best_crf = crf
+        best_vmaf = vmaf
+
+        if vmaf_min <= vmaf <= vmaf_max:
+            status = "pass"
+            break
+
+        if crf in visited_crfs:
+            status = "oscillation"
+            break
+
+        visited_crfs.add(crf)
+
+        if vmaf < vmaf_min and crf > crf_min:
+            crf -= 1
+        elif vmaf > vmaf_max and crf < crf_max:
+            crf += 1
+        else:
+            status = "bounds"
+            break
+    else:
+        status = "maxiter"
+
+    print(f"[{chunk_label}] CRF {best_crf} -> VMAF {best_vmaf:.2f} ({status})")
+    return (best_crf, best_vmaf, len(visited_crfs) + 1)
 
 
 def _write_concat_list(encoded_chunks: list[Path], concat_list_path: Path) -> None:
