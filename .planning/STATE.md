@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-07T22:29:58.869Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-03-07T22:34:57.981Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 10
 ---
 
@@ -55,6 +55,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 02-sqlite-state-layer P02 | 2 | 2 tasks | 2 files |
 | Phase 03-pipeline-runner P01 | 6 | 1 tasks | 3 files |
 | Phase 03-pipeline-runner P02 | 8 | 2 tasks | 2 files |
+| Phase 03-pipeline-runner P03 | 4 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting current work:
 - [Phase 03-pipeline-runner]: DEFAULT_CONFIG x264_params values are strings (not int/float) to preserve exact ffmpeg flag format (e.g. '12000K', '-loop', '0.50')
 - [Phase 03-02]: _transcode_audio writes to caller-provided output_path directly — no forced suffix; callers control output file naming
 - [Phase 03-02]: AUDIO_CODECS dispatch table at module level maps codec to (flags_list, ext) tuple — reusable by Plans 03+
+- [Phase 03-pipeline-runner]: Use model='version=vmaf_v0.6.1' in libvmaf filter (not model='path=...') — Windows drive-letter colon breaks lavfi parser even with escape_vmaf_path
+- [Phase 03-pipeline-runner]: _encode_chunk_with_vmaf implemented as sync function — test contract requires synchronous call; async DB integration in run_pipeline orchestrator (Plan 04)
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T22:29:58.866Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-03-07T22:34:49.836Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
