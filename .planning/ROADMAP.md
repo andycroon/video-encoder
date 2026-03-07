@@ -30,7 +30,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The VMAF model path escaping utility produces a filter-string-safe path on both platforms, validated against a known Windows drive-letter path
   4. The subprocess wrapper raises a clear, typed error when ffmpeg exits non-zero, including the captured stderr content
   5. README.md exists with: system prerequisites (Python version, ffmpeg install, scenedetect install), VMAF model setup (assets/ directory), and how to run the app
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Project scaffold + TDD test specifications (RED state)
+- [ ] 01-02-PLAN.md — Implement ffmpeg.py wrapper (GREEN all four tests)
+- [ ] 01-03-PLAN.md — Write README.md Phase 1 prerequisites section
 
 ### Phase 2: SQLite State Layer
 **Goal**: All job lifecycle state can be written and read durably, surviving application restarts, before the scheduler or API depend on it
@@ -89,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Subprocess Foundation | 0/? | Not started | - |
+| 1. Subprocess Foundation | 0/3 | Planning complete | - |
 | 2. SQLite State Layer | 0/? | Not started | - |
 | 3. Pipeline Runner | 0/? | Not started | - |
 | 4. Web API + Scheduler | 0/? | Not started | - |
