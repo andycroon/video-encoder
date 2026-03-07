@@ -47,7 +47,11 @@ Plans:
   3. Jobs left in RUNNING state are detectable at startup via the heartbeat_at column, enabling recovery without data loss
   4. All step records, VMAF scores, CRF values, and ffmpeg log events are writable and queryable through the DB access layer
   5. README.md updated with: database file location, how job state persists, and how to reset/wipe the job database
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Install aiosqlite, write test_db.py specs (RED state), create db.py skeleton
+- [ ] 02-02-PLAN.md — Implement db.py (GREEN all 7 tests), update README.md with Phase 2 section
 
 ### Phase 3: Pipeline Runner
 **Goal**: A real source MKV file can be encoded end-to-end — FFV1 intermediate, scene detection, chunking, audio transcode, per-chunk x264 encode with VMAF CRF feedback loop, concat, mux, and cleanup — entirely from the command line
@@ -95,7 +99,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Subprocess Foundation | 3/3 | Complete   | 2026-03-07 |
-| 2. SQLite State Layer | 0/? | Not started | - |
+| 2. SQLite State Layer | 0/2 | Not started | - |
 | 3. Pipeline Runner | 0/? | Not started | - |
 | 4. Web API + Scheduler | 0/? | Not started | - |
 | 5. React UI | 0/? | Not started | - |
