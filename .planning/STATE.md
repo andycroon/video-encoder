@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-07T17:42:44.191Z"
-last_activity: "2026-03-07 — Plan 01-01 complete: project scaffold + PIPE-10 test specs (RED state)"
+stopped_at: "Completed 02-01-PLAN.md"
+last_updated: "2026-03-07T17:47:00.000Z"
+last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 5
+  total_plans: 4
+  completed_plans: 4
+  percent: 10
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Every source video can be encoded to a precise VMAF quality target with zero manual intervention — queue it, watch it, get the result.
-**Current focus:** Phase 1 — Subprocess Foundation
+**Current focus:** Phase 2 — SQLite State Layer
 
 ## Current Position
 
-Phase: 1 of 5 (Subprocess Foundation)
-Plan: 1 of 2 in current phase
+Phase: 2 of 5 (SQLite State Layer)
+Plan: 1 of 2 in current phase (02-01 complete)
 Status: In progress
-Last activity: 2026-03-07 — Plan 01-01 complete: project scaffold + PIPE-10 test specs (RED state)
+Last activity: 2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs
 
-Progress: [█░░░░░░░░░] 5%
+Progress: [██░░░░░░░░] 10%
 
 ## Performance Metrics
 
@@ -70,6 +70,10 @@ Recent decisions affecting current work:
 - [Phase 01-02]: Progress regex must handle N/A bitrate — ffmpeg outputs bitrate=N/A when encoding to null device; stored as 0.0 float
 - [Phase 01-02]: FfmpegProcess uses __iter__/__next__ protocol (not generator function) so .cancel() is accessible on object returned by run_ffmpeg()
 - [Phase 01-02]: ffmpeg installed to C:/ffmpeg/ffmpeg.exe — was absent, downloaded from BtbN FFmpeg-Builds and placed at CLAUDE.md-specified path
+- [02-01]: aiosqlite>=0.22,<0.23 placed in [project] dependencies (not dev) — runtime dependency for Phase 3+ pipeline code
+- [02-01]: HEARTBEAT_STALE_SECONDS=60 exported as module-level constant so tests and callers reference threshold symbolically
+- [02-01]: update_chunk uses keyword-only args after chunk_id to prevent positional argument errors at call sites
+- [02-01]: All 15 stubs raise NotImplementedError immediately, ensuring no stub is accidentally permissive at RED stage
 
 ### Pending Todos
 
@@ -84,18 +88,19 @@ None yet.
 ## Performance Metrics (Updated)
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 6 min
+- Total plans completed: 4
+- Average duration: ~4 min
 - Total execution time: 0.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-subprocess-foundation | 1 | 6 min | 6 min |
+| 01-subprocess-foundation | 3 | ~12 min | ~4 min |
+| 02-sqlite-state-layer | 1 | 2 min | 2 min |
 
 ## Session Continuity
 
-Last session: 2026-03-07T17:42:44.188Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-sqlite-state-layer/02-CONTEXT.md
+Last session: 2026-03-07T17:47:00Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: .planning/phases/02-sqlite-state-layer/02-02-PLAN.md

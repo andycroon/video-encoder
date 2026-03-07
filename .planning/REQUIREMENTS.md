@@ -24,7 +24,7 @@
 - [ ] **QUEUE-02**: User can pause an active or queued job (waits for current pipeline step to finish)
 - [ ] **QUEUE-03**: User can cancel an active or queued job (graceful ffmpeg termination, temp file cleanup)
 - [ ] **QUEUE-04**: User can retry a failed job
-- [ ] **QUEUE-05**: Job state persists across application restarts (SQLite)
+- [x] **QUEUE-05**: Job state persists across application restarts (SQLite)
 - [ ] **QUEUE-06**: System monitors a configurable watch folder and auto-adds new MKV files to the queue
 
 ### Progress & Monitoring
@@ -96,7 +96,7 @@
 | QUEUE-02 | Phase 5: React UI | Pending |
 | QUEUE-03 | Phase 5: React UI | Pending |
 | QUEUE-04 | Phase 5: React UI | Pending |
-| QUEUE-05 | Phase 2: SQLite State Layer | Pending |
+| QUEUE-05 | Phase 2: SQLite State Layer | Complete |
 | QUEUE-06 | Phase 4: Web API + Scheduler | Pending |
 | PROG-01 | Phase 5: React UI | Pending |
 | PROG-02 | Phase 5: React UI | Pending |

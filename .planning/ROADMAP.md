@@ -99,7 +99,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Subprocess Foundation | 3/3 | Complete   | 2026-03-07 |
-| 2. SQLite State Layer | 0/2 | Not started | - |
+| 2. SQLite State Layer | 1/2 | In Progress|  |
 | 3. Pipeline Runner | 0/? | Not started | - |
 | 4. Web API + Scheduler | 0/? | Not started | - |
 | 5. React UI | 0/? | Not started | - |
