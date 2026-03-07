@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-07T22:34:57.981Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-03-07T22:40:26.091Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 10
 ---
 
@@ -56,6 +56,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 03-pipeline-runner P01 | 6 | 1 tasks | 3 files |
 | Phase 03-pipeline-runner P02 | 8 | 2 tasks | 2 files |
 | Phase 03-pipeline-runner P03 | 4 | 2 tasks | 1 files |
+| Phase 03-pipeline-runner P04 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase 03-02]: AUDIO_CODECS dispatch table at module level maps codec to (flags_list, ext) tuple — reusable by Plans 03+
 - [Phase 03-pipeline-runner]: Use model='version=vmaf_v0.6.1' in libvmaf filter (not model='path=...') — Windows drive-letter colon breaks lavfi parser even with escape_vmaf_path
 - [Phase 03-pipeline-runner]: _encode_chunk_with_vmaf implemented as sync function — test contract requires synchronous call; async DB integration in run_pipeline orchestrator (Plan 04)
+- [Phase 03-04]: _concat_chunks and _mux_video_audio implemented as sync functions — test contract calls them without await; consistent with _encode_chunk_with_vmaf sync pattern
+- [Phase 03-04]: run_pipeline calls sync helpers directly (no run_in_executor) — acceptable for single-job CLI; Phase 4 can wrap in executor if needed
 
 ### Pending Todos
 
@@ -114,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T22:34:49.836Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-03-07T22:40:26.088Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None
