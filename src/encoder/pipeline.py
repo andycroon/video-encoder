@@ -192,7 +192,19 @@ def _encode_chunk_x264(
     is_first: bool = True,
 ) -> None:
     """Encode a single FFV1 chunk to x264 at the given CRF."""
-    raise NotImplementedError
+    x264_params = config.get("x264_params", {})
+    params_str = _x264_params_str(x264_params)
+    cmd = [FFMPEG, "-y", "-i", str(chunk_path),
+           "-c:v", "libx264", "-crf", str(crf)]
+    if params_str:
+        cmd += ["-x264-params", params_str]
+    cmd += ["-an", str(output_path)]
+    try:
+        proc = run_ffmpeg(cmd)
+        for _ in proc:
+            pass
+    except FfmpegError as e:
+        raise PipelineError(f"x264 encode failed: {e}") from e
 
 
 def _vmaf_score(encoded_path: Path, reference_path: Path) -> float:
@@ -236,12 +248,15 @@ def _cleanup(temp_dir: Path) -> None:
 
 def _x264_params_str(params: dict) -> str:
     """Convert x264_params dict to colon-separated key=value string for -x264-params."""
-    raise NotImplementedError
+    if not params:
+        return ""
+    return ":".join(f"{k}={v}" for k, v in params.items())
 
 
 def _check_cancel(cancel_event) -> None:
     """Raise PipelineError(status='CANCELLED') if cancel_event is set."""
-    raise NotImplementedError
+    if cancel_event is not None and cancel_event.is_set():
+        raise PipelineError("Job cancelled", status="CANCELLED")
 
 
 # ---------------------------------------------------------------------------
