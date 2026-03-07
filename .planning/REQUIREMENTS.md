@@ -46,7 +46,7 @@
 
 ### Documentation
 
-- [ ] **DOC-01**: Project includes a detailed README.md with installation instructions (ffmpeg, scenedetect, Python deps, VMAF models in assets/), configuration reference (all settings, paths, VMAF/CRF parameters), and usage guide
+- [ ] **DOC-01**: README.md is built incrementally across all phases — each phase contributes its relevant section (installation prerequisites in Phase 1, pipeline config params in Phase 3, API/watch folder in Phase 4, full usage guide in Phase 5) so documentation stays current with the code
 
 ## v2 Requirements
 

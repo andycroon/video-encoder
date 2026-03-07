@@ -29,6 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A running ffmpeg encode can be cancelled gracefully (stdin 'q' then terminate) without killing the Python parent process on Windows
   3. The VMAF model path escaping utility produces a filter-string-safe path on both platforms, validated against a known Windows drive-letter path
   4. The subprocess wrapper raises a clear, typed error when ffmpeg exits non-zero, including the captured stderr content
+  5. README.md exists with: system prerequisites (Python version, ffmpeg install, scenedetect install), VMAF model setup (assets/ directory), and how to run the app
 **Plans**: TBD
 
 ### Phase 2: SQLite State Layer
@@ -40,6 +41,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. WAL mode is active on the database connection (verifiable via `PRAGMA journal_mode`)
   3. Jobs left in RUNNING state are detectable at startup via the heartbeat_at column, enabling recovery without data loss
   4. All step records, VMAF scores, CRF values, and ffmpeg log events are writable and queryable through the DB access layer
+  5. README.md updated with: database file location, how job state persists, and how to reset/wipe the job database
 **Plans**: TBD
 
 ### Phase 3: Pipeline Runner
@@ -52,6 +54,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Per-chunk VMAF scores and final CRF values are stored in the steps table and readable after job completion
   4. Audio is transcoded to the configured codec (EAC3, AAC, FLAC, or copy) and present in the final MKV
   5. The pipeline runs identically on Windows and Linux with configurable VMAF range, CRF bounds, audio codec, and x264 preset parameters
+  6. README.md updated with: all pipeline configuration parameters (VMAF range, CRF bounds, audio codec options, full x264 preset parameter reference, output/temp path config)
 **Plans**: TBD
 
 ### Phase 4: Web API + Scheduler
@@ -63,10 +66,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Global defaults (VMAF range, CRF bounds, audio codec, output path, temp path) are readable and writable via the settings API and persist across restarts
   3. New MKV files dropped into the configured watch folder are automatically added to the job queue within a debounce window
   4. A pre-flight disk space check runs before a job starts and the API returns a warning response if available space is below 3x the source file size
+  5. README.md updated with: how to start the server, API port/host config, watch folder configuration, and global defaults settings reference
 **Plans**: TBD
 
 ### Phase 5: React UI
-**Goal**: Every queue management action, progress indicator, and configuration option is accessible in the browser without any command-line interaction; project is fully documented for installation and use
+**Goal**: Every queue management action, progress indicator, and configuration option is accessible in the browser without any command-line interaction; README.md finalized as the complete reference
 **Depends on**: Phase 4
 **Requirements**: QUEUE-01, QUEUE-02, QUEUE-03, QUEUE-04, PROG-01, PROG-02, PROG-03, PROG-04, DOC-01
 **Success Criteria** (what must be TRUE):
@@ -75,7 +79,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A user can pause an active job, cancel it (with confirmation), and retry a failed job — all from the job list — and see the job state update immediately
   4. A user can expand the ffmpeg log panel for any job and read the full captured stderr output
   5. Estimated time remaining is displayed for active jobs and updates as chunk throughput data accumulates
-  6. README.md covers installation (ffmpeg, scenedetect, Python deps, VMAF models), all configurable settings, and a getting-started usage guide
+  6. README.md is complete: getting-started walkthrough, UI feature overview, troubleshooting section, and all sections from previous phases are accurate and up to date
 **Plans**: TBD
 
 ## Progress
