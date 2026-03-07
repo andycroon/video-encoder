@@ -327,22 +327,57 @@ def _encode_chunk_with_vmaf(
 
 def _write_concat_list(encoded_chunks: list[Path], concat_list_path: Path) -> None:
     """Write an ffmpeg concat demuxer manifest."""
-    raise NotImplementedError
+    with open(concat_list_path, "w", encoding="utf-8") as f:
+        for chunk in encoded_chunks:
+            f.write(f"file '{chunk.as_posix()}'\n")
 
 
 def _concat_chunks(concat_list_path: Path, output_path: Path) -> None:
     """Concatenate encoded chunks into a single video file using ffmpeg concat demuxer."""
-    raise NotImplementedError
+    cmd = [
+        FFMPEG, "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", str(concat_list_path),
+        "-c", "copy",
+        str(output_path),
+    ]
+    try:
+        proc = run_ffmpeg(cmd)
+        for _ in proc:
+            pass
+    except FfmpegError as e:
+        raise PipelineError(f"Concat failed: {e}") from e
 
 
 def _mux_video_audio(video_path: Path, audio_path: Path, output_path: Path) -> None:
     """Mux video and audio streams into final MKV."""
-    raise NotImplementedError
+    cmd = [
+        FFMPEG, "-y",
+        "-i", str(video_path),
+        "-i", str(audio_path),
+        "-c:v", "copy", "-c:a", "copy",
+        str(output_path),
+    ]
+    try:
+        proc = run_ffmpeg(cmd)
+        for _ in proc:
+            pass
+    except FfmpegError as e:
+        raise PipelineError(f"Mux failed: {e}") from e
 
 
 def _cleanup(temp_dir: Path) -> None:
     """Remove CHUNKS, ENCODED, and TEMP subdirectories under temp_dir."""
-    raise NotImplementedError
+    for subdir in ["chunks", "encoded", "intermediate"]:
+        path = temp_dir / subdir
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+    for f in temp_dir.glob("*"):
+        if f.is_file():
+            try:
+                f.unlink()
+            except OSError:
+                pass
 
 
 def _x264_params_str(params: dict) -> str:
