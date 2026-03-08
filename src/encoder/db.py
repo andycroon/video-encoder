@@ -92,6 +92,11 @@ async def init_db(path: str) -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
             CREATE INDEX IF NOT EXISTS idx_chunks_job_id ON chunks(job_id);
+            CREATE TABLE IF NOT EXISTS seen_files (
+                path  TEXT NOT NULL,
+                mtime REAL NOT NULL,
+                PRIMARY KEY (path, mtime)
+            );
             """
         )
         # Seed defaults — INSERT OR IGNORE keeps existing user values intact
@@ -360,3 +365,23 @@ async def get_steps(path: str, job_id: int) -> list[dict]:
         ) as cursor:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+
+
+async def seen_file(path: str, mtime: float, db_path: str) -> bool:
+    """Return True if this path+mtime combination has been seen before."""
+    async with get_db(db_path) as db:
+        row = await db.execute(
+            "SELECT 1 FROM seen_files WHERE path = ? AND mtime = ?",
+            (path, mtime),
+        )
+        return await row.fetchone() is not None
+
+
+async def mark_file_seen(path: str, mtime: float, db_path: str) -> None:
+    """Record that this path+mtime was enqueued so it is not re-added."""
+    async with get_db(db_path) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO seen_files (path, mtime) VALUES (?, ?)",
+            (path, mtime),
+        )
+        await db.commit()
