@@ -5,16 +5,7 @@ const ALL_STAGES = [
   'chunk_encode', 'merge', 'mux', 'cleanup',
 ];
 
-const STAGE_LABELS: Record<string, string> = {
-  ffv1_encode:     'Creating Intermediate',
-  scene_detect:    'Detecting Scenes',
-  chunk_split:     'Splitting into Chunks',
-  audio_transcode: 'Transcoding Audio',
-  chunk_encode:    'Encoding Chunks',
-  merge:           'Merging Chunks',
-  mux:             'Writing Output File',
-  cleanup:         'Cleaning Up',
-};
+import { STAGE_LABELS } from '../constants/stageLabels';
 
 interface Props {
   stages: StageData[];

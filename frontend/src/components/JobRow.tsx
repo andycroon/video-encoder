@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import type { Job } from '../types';
 import type { JobStatus } from '../types';
+import { STAGE_LABELS } from '../constants/stageLabels';
 import { pauseJob, retryJob } from '../api/jobs';
 import { useJobsStore } from '../store/jobsStore';
 import StatusBadge from './StatusBadge';
@@ -53,7 +54,7 @@ export default function JobRow({ job }: Props) {
     : null;
 
   const stageDisplay = job.currentStage
-    ? job.currentStage.replace(/_/g, ' ')
+    ? (STAGE_LABELS[job.currentStage] ?? job.currentStage.replace(/_/g, ' '))
     : '—';
 
   const actionBtn: React.CSSProperties = {
