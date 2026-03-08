@@ -20,6 +20,7 @@ from encoder.db import (
     update_job_status,
 )
 from encoder.scheduler import Scheduler
+from encoder.watcher import WatchFolder
 
 DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
 
@@ -28,14 +29,22 @@ DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
 async def lifespan(app: FastAPI):
     await init_db(DB_PATH)
     await recover_stale_jobs(DB_PATH)
+
     scheduler = Scheduler(db_path=DB_PATH)
     app.state.scheduler = scheduler
-    # Re-enqueue any jobs that were QUEUED at startup (survived restart)
+
+    # Re-enqueue surviving QUEUED jobs from previous session
     queued = await list_jobs(DB_PATH, status="QUEUED")
     for job in queued:
         await scheduler.enqueue(job["id"])
+
+    watcher = WatchFolder(scheduler=scheduler, db_path=DB_PATH)
+    app.state.watcher = watcher
+
     await scheduler.start()
+    await watcher.start()
     yield
+    await watcher.stop()
     await scheduler.stop()
 
 

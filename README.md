@@ -256,3 +256,118 @@ asyncio.run(run_pipeline(
 ))
 ```
 
+---
+
+## Phase 4: Web API + Scheduler
+
+### Starting the Server
+
+```bash
+python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
+```
+
+The server starts on port 8000 by default. Override host/port with uvicorn flags:
+
+```bash
+python -m uvicorn encoder.main:app --host 0.0.0.0 --port 9000
+```
+
+Set the database path via environment variable (default: `encoder.db` in the working directory):
+
+```bash
+ENCODER_DB=/data/encoder.db python -m uvicorn encoder.main:app
+```
+
+On startup the server:
+1. Initialises the SQLite database (creates tables if missing)
+2. Recovers stale RUNNING jobs → QUEUED so they re-encode after a crash
+3. Re-enqueues any QUEUED jobs that survived a restart
+4. Starts the serial job scheduler (one job at a time)
+5. Starts the watch folder poller (if configured)
+
+### Job Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /jobs | Submit a new job `{"source_path": "/path/to/file.mkv"}` |
+| GET | /jobs | List all jobs (optional `?status=QUEUED`) |
+| GET | /jobs/{id} | Get a single job |
+| PATCH | /jobs/{id}/pause | Pause an active job |
+| DELETE | /jobs/{id} | Cancel a job |
+| POST | /jobs/{id}/retry | Retry a failed/cancelled job |
+| GET | /jobs/{id}/stream | SSE stream of job progress events |
+
+**Submit a job:**
+
+```bash
+curl -X POST http://127.0.0.1:8000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"source_path": "/videos/source.mkv"}'
+```
+
+**Watch SSE progress stream:**
+
+```bash
+curl -N http://127.0.0.1:8000/jobs/1/stream
+```
+
+SSE named events: `stage`, `chunk_progress`, `chunk_complete`, `job_complete`, `error`, `warning`.
+
+### Settings API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /settings | Read all global defaults |
+| PUT | /settings | Update one or more global defaults |
+
+**Read current settings:**
+
+```bash
+curl http://127.0.0.1:8000/settings
+```
+
+**Update settings:**
+
+```bash
+curl -X PUT http://127.0.0.1:8000/settings \
+  -H "Content-Type: application/json" \
+  -d '{"vmaf_min": 95.0, "vmaf_max": 97.0, "watch_folder_path": "/videos/inbox"}'
+```
+
+Settings are persisted in SQLite and survive restarts.
+
+### Global Defaults Reference
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `vmaf_min` | 96.2 | Minimum acceptable VMAF score |
+| `vmaf_max` | 97.6 | Maximum acceptable VMAF score |
+| `crf_start` | 17 | Starting CRF value per chunk |
+| `crf_min` | 16 | CRF floor (never encode below this) |
+| `crf_max` | 20 | CRF ceiling (never encode above this) |
+| `audio_codec` | eac3 | Audio codec: `eac3`, `aac`, `flac`, or `copy` |
+| `output_path` | `` | Output directory for final MKVs (empty = `./output`) |
+| `temp_path` | `` | Working directory for intermediates (empty = `./temp`) |
+| `watch_folder_path` | `` | Auto-enqueue folder path (empty = disabled) |
+
+### Watch Folder
+
+Set `watch_folder_path` in settings to a directory path. The server polls every 10 seconds for
+new `.mkv` files. A file is enqueued only after its size is stable for 5 seconds (handles
+slow copies and NAS transfers). Source files are left in place (non-destructive).
+
+```bash
+curl -X PUT http://127.0.0.1:8000/settings \
+  -H "Content-Type: application/json" \
+  -d '{"watch_folder_path": "/videos/inbox"}'
+```
+
+To disable the watch folder, set `watch_folder_path` to an empty string.
+
+### Disk Space Pre-flight
+
+Before each job starts, the server checks that available disk space on the output drive is at
+least 3x the source file size. If space is insufficient, a `warning` SSE event is emitted on
+the job's `/stream` endpoint and a warning is logged. The job proceeds regardless — it does not
+block.
+
