@@ -82,7 +82,13 @@ Plans:
   3. New MKV files dropped into the configured watch folder are automatically added to the job queue within a debounce window
   4. A pre-flight disk space check runs before a job starts and the API returns a warning response if available space is below 3x the source file size
   5. README.md updated with: how to start the server, API port/host config, watch folder configuration, and global defaults settings reference
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — FastAPI scaffold + settings table (GET/PUT /settings)
+- [ ] 04-02-PLAN.md — Asyncio scheduler + job REST endpoints (POST/GET/PATCH/DELETE/retry)
+- [ ] 04-03-PLAN.md — SSE stream endpoint + disk preflight warning event
+- [ ] 04-04-PLAN.md — Watch folder background task + README Phase 4 section
 
 ### Phase 5: React UI
 **Goal**: Every queue management action, progress indicator, and configuration option is accessible in the browser without any command-line interaction; README.md finalized as the complete reference
@@ -107,5 +113,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Subprocess Foundation | 3/3 | Complete   | 2026-03-07 |
 | 2. SQLite State Layer | 2/2 | Complete   | 2026-03-07 |
 | 3. Pipeline Runner | 3/4 | In Progress|  |
-| 4. Web API + Scheduler | 0/? | Not started | - |
+| 4. Web API + Scheduler | 0/4 | Not started | - |
 | 5. React UI | 0/? | Not started | - |
