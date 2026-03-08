@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useJobsStore } from '../store/jobsStore';
 
-const SSE_EVENT_TYPES = ['stage', 'chunk_progress', 'chunk_complete', 'job_complete', 'error', 'warning'] as const;
+const SSE_EVENT_TYPES = ['stage', 'chunk_progress', 'chunk_complete', 'job_complete', 'error', 'warning', 'log'] as const;
 const TERMINAL_EVENTS = new Set(['job_complete', 'error']);
 
 export default function useJobStream(jobId: number, enabled: boolean): void {

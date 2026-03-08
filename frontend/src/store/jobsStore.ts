@@ -59,6 +59,10 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
       const d = data as { status: string; duration: number };
       return { ...job, status: d.status as Job['status'], currentStage: null, eta: null };
     }
+    case 'log': {
+      const d = data as { line: string };
+      return { ...job, log: job.log ? job.log + '\n' + d.line : d.line };
+    }
     case 'error': {
       return { ...job, status: 'FAILED', currentStage: null, eta: null };
     }

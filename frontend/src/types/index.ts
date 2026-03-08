@@ -46,4 +46,4 @@ export interface Profile {
   };
 }
 
-export type SseEventType = 'stage' | 'chunk_progress' | 'chunk_complete' | 'job_complete' | 'error' | 'warning';
+export type SseEventType = 'stage' | 'chunk_progress' | 'chunk_complete' | 'job_complete' | 'error' | 'warning' | 'log';
