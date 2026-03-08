@@ -136,17 +136,40 @@ def _ffv1_encode(source_path: Path, output_path: Path, cancel_event=None, on_pro
         raise PipelineError(f"FFV1 encode failed: {e}") from e
 
 
-def _detect_scenes(source_path: Path, threshold: float = 27.0) -> list[float]:
+class _StderrCapture:
+    """Redirect stderr to a callback — used to capture tqdm progress from PySceneDetect."""
+    def __init__(self, callback):
+        self._callback = callback
+
+    def write(self, s: str) -> int:
+        line = s.strip()
+        if line:
+            self._callback(line)
+        return len(s)
+
+    def flush(self) -> None:
+        pass
+
+
+def _detect_scenes(source_path: Path, threshold: float = 27.0, on_progress=None) -> list[float]:
     """Run PySceneDetect on source; return list of scene boundary timestamps in seconds.
 
     Raises PipelineError if no scenes are detected.
     """
+    import sys
     from scenedetect import ContentDetector, detect
 
-    scenes = detect(str(source_path), ContentDetector(threshold=threshold))
+    show = on_progress is not None
+    old_stderr = sys.stderr
+    try:
+        if show:
+            sys.stderr = _StderrCapture(on_progress)
+        scenes = detect(str(source_path), ContentDetector(threshold=threshold), show_progress=show)
+    finally:
+        sys.stderr = old_stderr
+
     if not scenes:
         raise PipelineError(f"No scenes detected in {source_path}")
-    # scenes[0] starts at 0 — skip it; return start times of subsequent scenes
     boundaries = [scene[0].get_seconds() for scene in scenes[1:]]
     return boundaries
 
@@ -504,8 +527,7 @@ async def run_pipeline(
         print("[SceneDetect] Detecting scenes...")
         t0 = time.monotonic()
         scene_threshold = config.get("scene_threshold", 27.0)
-        _log("Detecting scenes with PySceneDetect…")
-        scenes = _detect_scenes(intermediate, scene_threshold)
+        scenes = _detect_scenes(intermediate, scene_threshold, on_progress=_log)
         await update_step(db_path, step_id, "DONE")
         _log(f"Found {len(scenes)} scene boundaries")
         print(f"[SceneDetect] {len(scenes)} scenes, done ({time.monotonic() - t0:.0f}s)")
