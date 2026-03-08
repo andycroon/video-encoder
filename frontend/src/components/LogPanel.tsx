@@ -16,7 +16,7 @@ export default function LogPanel({ log }: Props) {
         {open ? 'Hide ffmpeg log' : 'Show ffmpeg log'}
       </button>
       {open && (
-        <ScrollToBottom className="h-72 font-mono text-xs px-3 pb-3 overflow-y-auto" style={{ background: '#0a0a0a' }}>
+        <ScrollToBottom className="h-72 font-mono text-xs px-3 pb-3 overflow-y-auto bg-[#0a0a0a]">
           <pre className="whitespace-pre-wrap text-neutral-400 leading-relaxed">{log || '(no log yet)'}</pre>
         </ScrollToBottom>
       )}

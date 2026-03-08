@@ -6,10 +6,11 @@ import { useJobsStore } from '../store/jobsStore';
 // Mock EventSource for jsdom
 class MockEventSource {
   static instances: MockEventSource[] = [];
+  url: string;
   listeners: Record<string, ((e: MessageEvent) => void)[]> = {};
   onerror: ((e: Event) => void) | null = null;
   readyState = 1; // OPEN
-  constructor(public url: string) { MockEventSource.instances.push(this); }
+  constructor(url: string) { this.url = url; MockEventSource.instances.push(this); }
   addEventListener(type: string, handler: (e: MessageEvent) => void) {
     this.listeners[type] ??= [];
     this.listeners[type].push(handler);
@@ -23,14 +24,14 @@ class MockEventSource {
 
 beforeEach(() => {
   MockEventSource.instances = [];
-  (global as any).EventSource = MockEventSource;
+  (globalThis as any).EventSource = MockEventSource;
   useJobsStore.setState({ jobs: [
     { id: 1, source_path: '/test.mkv', status: 'RUNNING', config: {}, created_at: '',
       log: '', currentStage: null, stages: [], chunks: [], totalChunks: null, eta: null }
   ]});
 });
 
-afterEach(() => { delete (global as any).EventSource; });
+afterEach(() => { delete (globalThis as any).EventSource; });
 
 describe('useJobStream — PROG-01 / PROG-02', () => {
   it('PROG-01: stage event updates currentStage via store', () => {
