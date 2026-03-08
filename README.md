@@ -305,9 +305,21 @@ curl http://127.0.0.1:8000/settings
 
 Expected response: JSON object with all 9 keys (`vmaf_min`, `vmaf_max`, `crf_start`, etc.) at their default values.
 
-**Step 3 — submit a job:**
+**Step 3 — open the SSE stream in a second terminal:**
 
-Replace `/path/to/your/file.mkv` with the absolute path to any MKV file on disk.
+Open a second terminal and run this before submitting the job, so you don't miss any events:
+
+```bash
+curl -N http://127.0.0.1:8000/jobs/1/stream
+```
+
+This will show `: ping` every 15 seconds until the job starts. Leave it running.
+
+**Step 4 — submit a job (back in the first terminal):**
+
+Submitting a job starts it automatically — no separate start command is needed.
+
+Replace the path with the absolute path to any MKV file on disk.
 
 **Linux / macOS / Git Bash:**
 ```bash
@@ -325,18 +337,6 @@ Expected response:
 ```json
 {"id": 1, "source_path": "...", "status": "QUEUED", ...}
 ```
-
-Note the `id` value — you need it in the next step.
-
-**Step 4 — stream SSE progress events:**
-
-Replace `1` with the job ID returned in Step 3:
-
-```bash
-curl -N http://127.0.0.1:8000/jobs/1/stream
-```
-
-The `-N` flag disables output buffering so events appear as they arrive. Leave this running.
 
 Expected output (events arrive within seconds of job starting):
 ```
