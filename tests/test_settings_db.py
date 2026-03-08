@@ -20,7 +20,7 @@ def db_path(tmp_path):
 
 def run(coro):
     """Helper to run a coroutine in a synchronous test."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
