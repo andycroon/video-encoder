@@ -41,6 +41,7 @@ class Scheduler:
 
     async def start(self) -> None:
         """Start the background worker. Call from FastAPI lifespan."""
+        event_bus.set_loop(asyncio.get_running_loop())
         self._worker_task = asyncio.create_task(self._worker_loop())
 
     async def stop(self) -> None:
@@ -114,6 +115,10 @@ class Scheduler:
         })
 
         loop = asyncio.get_running_loop()
+
+        def on_stage(name: str) -> None:
+            event_bus.publish(job_id, "stage", {"name": name})
+
         try:
             await loop.run_in_executor(
                 self._executor,
@@ -125,6 +130,7 @@ class Scheduler:
                 cancel_event,
                 str(output_dir),
                 str(temp_dir),
+                on_stage,
             )
             # Pipeline completed successfully — emit job_complete
             finished_job = await get_job(self.db_path, job_id)
@@ -144,13 +150,13 @@ class Scheduler:
             self._paused_jobs.discard(job_id)
 
 
-def _run_pipeline_sync(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir):
+def _run_pipeline_sync(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir, on_stage=None):
     """Synchronous wrapper to run the async run_pipeline in a thread."""
     import asyncio as _asyncio
     loop = _asyncio.new_event_loop()
     try:
         loop.run_until_complete(
-            run_pipeline(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir)
+            run_pipeline(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir, on_stage=on_stage)
         )
     finally:
         loop.close()

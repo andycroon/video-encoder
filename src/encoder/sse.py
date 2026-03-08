@@ -17,12 +17,23 @@ class EventBus:
     def __init__(self):
         # job_id -> list of asyncio.Queue
         self._subscribers: dict[int, list[asyncio.Queue]] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Store the main event loop so publish() is safe to call from threads."""
+        self._loop = loop
 
     def publish(self, job_id: int, event_type: str, data: dict) -> None:
-        """Publish an event. Safe to call from sync threads via call_soon_threadsafe."""
-        queues = self._subscribers.get(job_id, [])
+        """Publish an event. Thread-safe — routes through call_soon_threadsafe when called from a thread."""
         message = _format_sse(event_type, data)
-        for q in queues:
+        if self._loop and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(self._deliver, job_id, message, event_type)
+        else:
+            self._deliver(job_id, message, event_type)
+
+    def _deliver(self, job_id: int, message: str, event_type: str) -> None:
+        """Put message into all subscriber queues. Must run on the event loop thread."""
+        for q in self._subscribers.get(job_id, []):
             try:
                 q.put_nowait(message)
             except asyncio.QueueFull:
