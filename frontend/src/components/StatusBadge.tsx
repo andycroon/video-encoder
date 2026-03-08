@@ -1,32 +1,42 @@
 import type { JobStatus } from '../types';
 
-const STATUS_CONFIG: Record<JobStatus, { dot: string; label: string; style: React.CSSProperties }> = {
-  QUEUED:    { dot: '#64748b', label: 'Queued',    style: { color: '#94a3b8', background: '#1e2433', border: '1px solid #2d3748' } },
-  RUNNING:   { dot: '#3b82f6', label: 'Running',   style: { color: '#93c5fd', background: '#1a2540', border: '1px solid #2d4a8a' } },
-  PAUSED:    { dot: '#f59e0b', label: 'Paused',    style: { color: '#fcd34d', background: '#2a2010', border: '1px solid #78450a' } },
-  DONE:      { dot: '#10b981', label: 'Done',      style: { color: '#6ee7b7', background: '#0d2420', border: '1px solid #1a5c3e' } },
-  FAILED:    { dot: '#ef4444', label: 'Failed',    style: { color: '#fca5a5', background: '#2a1515', border: '1px solid #7c2323' } },
-  CANCELLED: { dot: '#52525b', label: 'Cancelled', style: { color: '#71717a', background: '#18181b', border: '1px solid #27272a' } },
+const CFG: Record<JobStatus, { color: string; bg: string; border: string; label: string; pulse?: boolean }> = {
+  QUEUED:    { color: '#94a3b8', bg: '#1e2433',  border: '#334155', label: 'Queued'    },
+  RUNNING:   { color: '#93c5fd', bg: '#172035',  border: '#2563eb', label: 'Running', pulse: true },
+  PAUSED:    { color: '#fcd34d', bg: '#261d0d',  border: '#92400e', label: 'Paused'    },
+  DONE:      { color: '#86efac', bg: '#0d2318',  border: '#166534', label: 'Done'      },
+  FAILED:    { color: '#fca5a5', bg: '#220f0f',  border: '#7f1d1d', label: 'Failed'    },
+  CANCELLED: { color: '#71717a', bg: '#18181b',  border: '#27272a', label: 'Cancelled' },
 };
 
 export default function StatusBadge({ status }: { status: JobStatus }) {
-  const cfg = STATUS_CONFIG[status];
-  const isRunning = status === 'RUNNING';
+  const c = CFG[status];
   return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium tracking-wide"
-      style={cfg.style}
-    >
-      <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
-        {isRunning && (
-          <span
-            className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-            style={{ background: cfg.dot }}
-          />
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '3px 9px',
+      borderRadius: 4,
+      fontSize: 12,
+      fontWeight: 500,
+      letterSpacing: '0.02em',
+      color: c.color,
+      background: c.bg,
+      border: `1px solid ${c.border}`,
+    }}>
+      <span style={{ position: 'relative', display: 'inline-flex', width: 6, height: 6, flexShrink: 0 }}>
+        {c.pulse && (
+          <span style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            background: c.color, opacity: 0.6,
+            animation: 'ping 1.2s cubic-bezier(0,0,0.2,1) infinite',
+          }} />
         )}
-        <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: cfg.dot }} />
+        <span style={{ position: 'relative', display: 'inline-flex', borderRadius: '50%', width: 6, height: 6, background: c.color }} />
       </span>
-      {cfg.label}
+      {c.label}
+      <style>{`@keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }`}</style>
     </span>
   );
 }

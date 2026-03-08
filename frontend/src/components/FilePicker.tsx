@@ -11,28 +11,25 @@ interface Props {
   type?: 'file' | 'folder';
 }
 
-const FolderIcon = ({ dim = false }: { dim?: boolean }) => (
-  <svg width="14" height="14" viewBox="0 0 16 14" fill="none" style={{ flexShrink: 0 }}>
-    <path
-      d="M0 2a2 2 0 0 1 2-2h3.172a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 8.828 2H14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2Z"
-      fill={dim ? '#374151' : '#2563eb'}
-      opacity={dim ? 0.6 : 0.8}
-    />
+const FolderSvg = ({ open: o = false }: { open?: boolean }) => (
+  <svg width="16" height="14" viewBox="0 0 16 14" fill="none" style={{ flexShrink: 0 }}>
+    {o ? (
+      <path d="M0 3a2 2 0 0 1 2-2h3.17a2 2 0 0 1 1.41.59L7.83 3H14a2 2 0 0 1 2 2l-.5 6A2 2 0 0 1 13.5 13H2A2 2 0 0 1 0 11V3Z" fill="#4080ff" opacity={0.7}/>
+    ) : (
+      <>
+        <path d="M0 3a2 2 0 0 1 2-2h3.17a2 2 0 0 1 1.41.59L7.83 3H14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3Z" fill="#4080ff" opacity={0.65}/>
+        <path d="M0 5h16v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V5Z" fill="#4080ff" opacity={0.9}/>
+      </>
+    )}
   </svg>
 );
 
-const VideoIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="0.5" y="0.5" width="13" height="13" rx="1.5" fill="#1e2533" stroke="#374151" />
-    <rect x="1" y="2" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <rect x="4" y="2" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <rect x="7" y="2" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <rect x="10" y="2" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <rect x="1" y="10.5" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <rect x="4" y="10.5" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <rect x="7" y="10.5" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <rect x="10" y="10.5" width="2" height="1.5" rx="0.3" fill="#4b5563" />
-    <path d="M5 5l4 2-4 2V5Z" fill="#6b7280" />
+const FileSvg = () => (
+  <svg width="14" height="16" viewBox="0 0 14 16" fill="none" style={{ flexShrink: 0 }}>
+    <path d="M2 0h7l5 5v9a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2Z" fill="#1e2533" stroke="#374151" strokeWidth="0.5"/>
+    <path d="M9 0v5h5" fill="none" stroke="#374151" strokeWidth="0.5"/>
+    <rect x="3" y="8"  width="8" height="1" rx="0.5" fill="#4b5563"/>
+    <rect x="3" y="11" width="6" height="1" rx="0.5" fill="#374151"/>
   </svg>
 );
 
@@ -69,149 +66,203 @@ export default function FilePicker({ open, onClose, onSelect, initialPath, type 
     else setSelected(entry.path);
   };
 
-  const dirs = entries.filter(e => e.is_dir);
+  const dirs  = entries.filter(e => e.is_dir);
   const files = entries.filter(e => !e.is_dir);
   const canGoUp = parent !== null || path !== '';
+
+  const selectValue = type === 'folder' ? path : selected;
+  const canConfirm  = type === 'folder' ? !!path : !!selected;
+
+  const rowStyle = (active = false): React.CSSProperties => ({
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '9px 16px',
+    background: active ? 'rgba(64,128,255,0.12)' : 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    textAlign: 'left',
+    color: active ? '#93c5fd' : 'var(--txt)',
+    fontSize: 13,
+    transition: 'background 0.1s',
+  });
 
   return (
     <Dialog.Root open={open} onOpenChange={o => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.8)' }} />
-        <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="flex flex-col w-full max-w-xl rounded"
-            style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', maxHeight: '78vh' }}
-          >
-            {/* Title bar */}
-            <div
-              className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
-              style={{ borderBottom: '1px solid var(--border)' }}
+        <Dialog.Overlay style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50 }} />
+        <Dialog.Content style={{
+          position: 'fixed',
+          top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 540,
+          maxHeight: '78vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          zIndex: 51,
+          boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+          overflow: 'hidden',
+        }}>
+
+          {/* Title bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
+            flexShrink: 0,
+          }}>
+            <Dialog.Title style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt)', margin: 0 }}>
+              {type === 'folder' ? 'Select Folder' : 'Select Source File'}
+            </Dialog.Title>
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt-3)', fontSize: 18, lineHeight: 1, padding: 4 }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--txt)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--txt-3)')}
             >
-              <Dialog.Title className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                {type === 'folder' ? 'Select Folder' : 'Select Source File'}
-              </Dialog.Title>
-              <button
-                onClick={onClose}
-                className="text-sm w-5 h-5 flex items-center justify-center rounded transition-colors hover:bg-white/[0.06]"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                ✕
-              </button>
-            </div>
+              ×
+            </button>
+          </div>
 
-            {/* Path bar */}
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 flex-shrink-0 font-mono"
-              style={{ borderBottom: '1px solid var(--border-sub)', background: 'var(--bg-base)', fontSize: '11px' }}
-            >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path d="M1 5h8M5 1l4 4-4 4" stroke="#52525b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="truncate flex-1" style={{ color: path ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                {path || 'Computer'}
-              </span>
-            </div>
+          {/* Path breadcrumb */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '8px 18px',
+            borderBottom: '1px solid var(--border-lo)',
+            background: 'var(--bg)',
+            flexShrink: 0,
+          }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M1 6h10M6 1l5 5-5 5" stroke="var(--txt-3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="mono" style={{ fontSize: 12, color: path ? 'var(--txt-2)' : 'var(--txt-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {path || 'Computer'}
+            </span>
+          </div>
 
-            {/* File list */}
-            <div className="flex-1 overflow-y-auto">
-              {loading && (
-                <div className="flex items-center justify-center h-32 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Loading…
-                </div>
-              )}
-              {error && (
-                <div className="flex items-center justify-center h-32 text-xs" style={{ color: '#ef4444' }}>
-                  {error}
-                </div>
-              )}
-              {!loading && !error && (
-                <ul>
-                  {/* Parent (..) entry */}
-                  {canGoUp && (
-                    <li style={{ borderBottom: '1px solid var(--border-sub)' }}>
-                      <button
-                        onClick={() => load(parent ?? '')}
-                        className="w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-white/[0.04]"
-                        style={{ color: 'var(--text-secondary)' }}
-                      >
-                        <FolderIcon dim />
-                        <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>..</span>
-                      </button>
-                    </li>
-                  )}
+          {/* File list */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: 'var(--txt-3)', fontSize: 13 }}>
+                Loading…
+              </div>
+            )}
+            {error && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: 'var(--red)', fontSize: 13 }}>
+                {error}
+              </div>
+            )}
+            {!loading && !error && (
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
 
-                  {/* Directories */}
-                  {dirs.map(e => (
-                    <li key={e.path} style={{ borderBottom: '1px solid var(--border-sub)' }}>
+                {/* Parent (..) */}
+                {canGoUp && (
+                  <li style={{ borderBottom: '1px solid var(--border-lo)' }}>
+                    <button
+                      onClick={() => load(parent ?? '')}
+                      style={rowStyle()}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <FolderSvg />
+                      <span className="mono" style={{ color: 'var(--txt-3)', fontSize: 13 }}>..</span>
+                    </button>
+                  </li>
+                )}
+
+                {/* Directories */}
+                {dirs.map(e => (
+                  <li key={e.path} style={{ borderBottom: '1px solid var(--border-lo)' }}>
+                    <button
+                      onClick={() => handleEntry(e)}
+                      style={rowStyle()}
+                      onMouseEnter={ev => (ev.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onMouseLeave={ev => (ev.currentTarget.style.background = 'transparent')}
+                    >
+                      <FolderSvg />
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                    </button>
+                  </li>
+                ))}
+
+                {/* Files (file mode only) */}
+                {type === 'file' && files.map(e => {
+                  const isSelected = selected === e.path;
+                  return (
+                    <li key={e.path} style={{ borderBottom: '1px solid var(--border-lo)' }}>
                       <button
                         onClick={() => handleEntry(e)}
-                        className="w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-white/[0.04]"
-                        style={{ color: 'var(--text-primary)' }}
+                        style={rowStyle(isSelected)}
+                        onMouseEnter={ev => { if (!isSelected) ev.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                        onMouseLeave={ev => { if (!isSelected) ev.currentTarget.style.background = 'transparent'; }}
                       >
-                        <FolderIcon />
-                        <span className="truncate">{e.name}</span>
-                      </button>
-                    </li>
-                  ))}
-
-                  {/* Files — hidden in folder mode */}
-                  {type === 'file' && files.map(e => (
-                    <li key={e.path} style={{ borderBottom: '1px solid var(--border-sub)' }}>
-                      <button
-                        onClick={() => handleEntry(e)}
-                        className="w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors"
-                        style={{
-                          color: selected === e.path ? '#93c5fd' : 'var(--text-primary)',
-                          background: selected === e.path ? '#1a254080' : 'transparent',
-                        }}
-                      >
-                        <VideoIcon />
-                        <span className="truncate flex-1 text-left font-mono" style={{ fontSize: '12px' }}>{e.name}</span>
-                        {selected === e.path && (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <path d="M2 6l3 3 5-5" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <FileSvg />
+                        <span className="mono" style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSelected ? '#93c5fd' : 'var(--txt)' }}>
+                          {e.name}
+                        </span>
+                        {isSelected && (
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M2.5 7L6 10.5L11.5 4" stroke="#4080ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                         )}
                       </button>
                     </li>
-                  ))}
+                  );
+                })}
 
-                  {!loading && dirs.length === 0 && files.length === 0 && !canGoUp && (
-                    <li className="flex items-center justify-center h-24 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Empty
-                    </li>
-                  )}
-                </ul>
-              )}
-            </div>
+                {!loading && dirs.length === 0 && (type === 'folder' || files.length === 0) && !canGoUp && (
+                  <li style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 100, color: 'var(--txt-3)', fontSize: 13 }}>
+                    Empty
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
 
-            {/* Footer */}
-            <div
-              className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
-              style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-base)' }}
+          {/* Footer */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '12px 18px',
+            borderTop: '1px solid var(--border)',
+            background: 'var(--bg)',
+            flexShrink: 0,
+          }}>
+            <span className="mono" style={{
+              flex: 1, fontSize: 12,
+              color: selectValue ? 'var(--txt-2)' : 'var(--txt-3)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {selectValue || (type === 'folder' ? 'No folder selected' : 'No file selected')}
+            </span>
+            <button
+              onClick={onClose}
+              style={{
+                height: 34, padding: '0 16px',
+                background: 'var(--raised)', border: '1px solid var(--border)',
+                borderRadius: 5, cursor: 'pointer',
+                fontSize: 13, color: 'var(--txt-2)',
+              }}
             >
-              <span className="flex-1 text-xs font-mono truncate" style={{ color: 'var(--text-secondary)' }}>
-                {type === 'folder' ? (path || 'No folder selected') : (selected || 'No file selected')}
-              </span>
-              <button
-                onClick={onClose}
-                className="px-4 py-1.5 text-xs rounded transition-colors"
-                style={{ color: 'var(--text-secondary)', background: 'var(--bg-panel)', border: '1px solid var(--border)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const val = type === 'folder' ? path : selected;
-                  if (val) { onSelect(val); onClose(); }
-                }}
-                disabled={type === 'folder' ? !path : !selected}
-                className="px-4 py-1.5 text-xs font-semibold rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ color: 'white', background: '#2563eb' }}
-              >
-                {type === 'folder' ? 'Select this folder' : 'Select'}
-              </button>
-            </div>
+              Cancel
+            </button>
+            <button
+              onClick={() => { if (canConfirm) { onSelect(selectValue); onClose(); } }}
+              disabled={!canConfirm}
+              style={{
+                height: 34, padding: '0 18px',
+                background: canConfirm ? '#4080ff' : '#1a1a2e',
+                border: `1px solid ${canConfirm ? '#4080ff' : '#2a2a45'}`,
+                borderRadius: 5, cursor: canConfirm ? 'pointer' : 'not-allowed',
+                fontSize: 13, fontWeight: 600,
+                color: canConfirm ? 'white' : 'var(--txt-3)',
+              }}
+            >
+              {type === 'folder' ? 'Select this folder' : 'Select'}
+            </button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

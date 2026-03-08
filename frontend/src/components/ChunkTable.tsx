@@ -3,55 +3,76 @@ import type { ChunkData } from '../types';
 interface Props { chunks: ChunkData[] }
 
 function vmafColor(v: number): string {
-  if (v >= 96) return '#10b981';
+  if (v >= 96) return '#22c55e';
   if (v >= 93) return '#f59e0b';
   return '#ef4444';
 }
 
+const th: React.CSSProperties = {
+  padding: '8px 12px',
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'var(--txt-3)',
+  textAlign: 'left',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--bg)',
+  position: 'sticky',
+  top: 0,
+};
+
 export default function ChunkTable({ chunks }: Props) {
   if (chunks.length === 0) {
     return (
-      <div className="flex items-center justify-center h-24 text-xs font-mono rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-base)', border: '1px solid var(--border-sub)' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: 80,
+        border: '1px solid var(--border-lo)',
+        borderRadius: 6,
+        fontSize: 12,
+        color: 'var(--txt-3)',
+      }}>
         Waiting for chunk data…
       </div>
     );
   }
 
   return (
-    <div className="overflow-y-auto rounded" style={{ maxHeight: '220px', border: '1px solid var(--border-sub)' }}>
-      <table className="w-full text-xs" style={{ borderCollapse: 'collapse' }}>
-        <thead className="sticky top-0" style={{ background: 'var(--bg-raised)' }}>
+    <div style={{
+      maxHeight: 220,
+      overflowY: 'auto',
+      border: '1px solid var(--border)',
+      borderRadius: 6,
+    }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
           <tr>
-            {['#', 'CRF', 'VMAF', 'Passes'].map(h => (
-              <th
-                key={h}
-                className="px-3 py-1.5 text-left font-medium uppercase tracking-wider"
-                style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', fontSize: '10px' }}
-              >
-                {h}
-              </th>
-            ))}
+            <th style={th}>#</th>
+            <th style={th}>CRF</th>
+            <th style={th}>VMAF</th>
+            <th style={th}>Passes</th>
           </tr>
         </thead>
         <tbody>
-          {chunks.map((c, idx) => (
+          {chunks.map((c, i) => (
             <tr
               key={c.chunkIndex}
-              style={{
-                background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
-                borderBottom: '1px solid rgba(255,255,255,0.04)',
-              }}
+              style={{ background: i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent' }}
             >
-              <td className="px-3 py-1.5 font-mono" style={{ color: 'var(--text-muted)' }}>{c.chunkIndex + 1}</td>
-              <td className="px-3 py-1.5 font-mono" style={{ color: 'var(--text-secondary)' }}>{c.crf ?? '—'}</td>
-              <td className="px-3 py-1.5 font-mono font-medium">
-                {c.vmaf !== null ? (
-                  <span style={{ color: vmafColor(c.vmaf) }}>{c.vmaf.toFixed(2)}</span>
-                ) : (
-                  <span className="animate-pulse" style={{ color: 'var(--text-muted)' }}>--</span>
-                )}
+              <td className="mono" style={{ padding: '7px 12px', color: 'var(--txt-3)' }}>{c.chunkIndex + 1}</td>
+              <td className="mono" style={{ padding: '7px 12px', color: 'var(--txt-2)' }}>{c.crf ?? '--'}</td>
+              <td className="mono" style={{ padding: '7px 12px', fontWeight: 500 }}>
+                {c.vmaf != null
+                  ? <span style={{ color: vmafColor(c.vmaf) }}>{c.vmaf.toFixed(2)}</span>
+                  : <span style={{ color: 'var(--txt-3)' }}>--</span>
+                }
               </td>
-              <td className="px-3 py-1.5 font-mono" style={{ color: c.passes > 1 ? '#fcd34d' : 'var(--text-muted)' }}>
+              <td className="mono" style={{
+                padding: '7px 12px',
+                color: c.passes > 1 ? '#fcd34d' : 'var(--txt-3)',
+                fontWeight: c.passes > 1 ? 600 : 400,
+              }}>
                 {c.passes}
               </td>
             </tr>

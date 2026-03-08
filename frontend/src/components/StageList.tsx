@@ -26,65 +26,81 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
   const completedNames = new Set(stages.filter(s => s.completedAt).map(s => s.name));
 
   return (
-    <ol className="space-y-0">
+    <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 2 }}>
       {ALL_STAGES.map((name, idx) => {
-        const isDone = completedNames.has(name);
+        const isDone   = completedNames.has(name);
         const isActive = name === currentStage;
 
         const stageData = stages.find(s => s.name === name);
-        const durationSec = stageData?.completedAt && stageData?.startedAt
+        const dur = stageData?.completedAt && stageData?.startedAt
           ? ((new Date(stageData.completedAt).getTime() - new Date(stageData.startedAt).getTime()) / 1000).toFixed(1) + 's'
           : null;
 
         return (
           <li
             key={name}
-            className="flex items-center gap-3 py-1"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '5px 0',
+              opacity: !isDone && !isActive ? 0.45 : 1,
+            }}
           >
-            {/* Step number / indicator */}
-            <span
-              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-xs font-mono font-medium"
-              style={
-                isDone
-                  ? { background: '#0f2e22', color: '#10b981', border: '1px solid #1a5c3e' }
-                  : isActive
-                  ? { background: '#1a2540', color: '#3b82f6', border: '1px solid #2d4a8a' }
-                  : { background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)' }
-              }
-            >
+            {/* Step indicator */}
+            <div style={{
+              width: 22,
+              height: 22,
+              borderRadius: 5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              fontSize: 11,
+              fontWeight: 600,
+              background: isDone ? '#0d2318' : isActive ? '#172035' : 'var(--raised)',
+              border: `1px solid ${isDone ? '#166534' : isActive ? '#2563eb' : 'var(--border)'}`,
+              color: isDone ? '#22c55e' : isActive ? '#93c5fd' : 'var(--txt-3)',
+              position: 'relative',
+            }}>
               {isDone ? (
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M2 5l2.5 2.5 3.5-4" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 5.5L4 7.5L8 3" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               ) : isActive ? (
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400" />
+                <span style={{ position: 'relative', display: 'inline-flex', width: 7, height: 7 }}>
+                  <span style={{
+                    position: 'absolute', inset: 0, borderRadius: '50%',
+                    background: '#f59e0b', opacity: 0.7,
+                    animation: 'ping 1.2s cubic-bezier(0,0,0.2,1) infinite',
+                  }} />
+                  <span style={{ position: 'relative', borderRadius: '50%', width: 7, height: 7, background: '#f59e0b', display: 'inline-flex' }} />
+                  <style>{`@keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }`}</style>
                 </span>
               ) : (
                 idx + 1
               )}
-            </span>
+            </div>
 
             {/* Label */}
-            <span
-              className="flex-1 text-xs font-medium"
-              style={{
-                color: isDone ? '#6ee7b7' : isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-              }}
-            >
+            <span style={{
+              flex: 1,
+              fontSize: 13,
+              color: isDone ? 'var(--txt-2)' : isActive ? 'var(--txt)' : 'var(--txt-3)',
+              fontWeight: isActive ? 500 : 400,
+            }}>
               {STAGE_LABELS[name] ?? name}
               {name === 'chunk_encode' && totalChunks && !isDone && (
-                <span className="ml-2 font-mono" style={{ color: 'var(--text-muted)' }}>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)', marginLeft: 8 }}>
                   {stages.filter(s => s.name === 'chunk_encode').length}/{totalChunks}
                 </span>
               )}
             </span>
 
             {/* Duration */}
-            {durationSec && (
-              <span className="text-xs font-mono flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-                {durationSec}
+            {dur && (
+              <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)', flexShrink: 0 }}>
+                {dur}
               </span>
             )}
           </li>

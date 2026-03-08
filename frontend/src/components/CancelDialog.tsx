@@ -9,56 +9,86 @@ export default function CancelDialog({ jobId, onCancelled }: Props) {
     onCancelled();
   };
 
+  const btn: React.CSSProperties = {
+    height: 34, padding: '0 16px',
+    fontSize: 13, fontWeight: 500,
+    borderRadius: 5, cursor: 'pointer',
+  };
+
   return (
     <AlertDialog.Root>
       <AlertDialog.Trigger asChild>
         <button
-          className="px-2 py-0.5 text-xs rounded transition-colors"
-          style={{ color: '#fca5a5', background: '#2a1515', border: '1px solid #7c232340' }}
+          style={{
+            height: 28, padding: '0 12px',
+            fontSize: 12, fontWeight: 500,
+            borderRadius: 4, cursor: 'pointer',
+            color: '#fca5a5',
+            background: '#220f0f',
+            border: '1px solid #7f1d1d60',
+          }}
         >
           Cancel
         </button>
       </AlertDialog.Trigger>
+
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 bg-black/75 z-40" />
+        <AlertDialog.Overlay style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 40 }} />
         <AlertDialog.Content
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 z-50 rounded shadow-2xl p-5"
-          style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}
           role="alertdialog"
+          style={{
+            position: 'fixed',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 340,
+            background: 'var(--raised)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: 24,
+            zIndex: 50,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+          }}
         >
-          <div className="flex items-start gap-3 mb-4">
-            <div
-              className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-              style={{ background: '#2a1515', border: '1px solid #7c2323' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M7 2v5M7 10v.5" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div>
-              <AlertDialog.Title className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                Cancel encoding job?
-              </AlertDialog.Title>
-              <AlertDialog.Description className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                ffmpeg will be terminated and temp files cleaned up.
-              </AlertDialog.Description>
-            </div>
+          {/* Icon */}
+          <div style={{
+            width: 40, height: 40, borderRadius: 8,
+            background: '#220f0f', border: '1px solid #7f1d1d',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 16,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3v6M8 12v.5" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
           </div>
 
-          <div className="flex gap-2 justify-end">
+          <AlertDialog.Title style={{ fontSize: 15, fontWeight: 600, color: 'var(--txt)', margin: '0 0 8px' }}>
+            Cancel encoding job?
+          </AlertDialog.Title>
+          <AlertDialog.Description style={{ fontSize: 13, color: 'var(--txt-2)', margin: '0 0 24px', lineHeight: 1.6 }}>
+            ffmpeg will be stopped and temporary files cleaned up. This cannot be undone.
+          </AlertDialog.Description>
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <AlertDialog.Cancel asChild>
-              <button
-                className="px-4 py-1.5 text-xs rounded transition-colors"
-                style={{ color: 'var(--text-secondary)', background: 'var(--bg-panel)', border: '1px solid var(--border)' }}
-              >
+              <button style={{
+                ...btn,
+                color: 'var(--txt-2)',
+                background: 'var(--panel)',
+                border: '1px solid var(--border)',
+              }}>
                 Keep running
               </button>
             </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
               <button
                 onClick={handleConfirm}
-                className="px-4 py-1.5 text-xs font-semibold rounded transition-colors"
-                style={{ color: 'white', background: '#b91c1c', border: '1px solid #991b1b' }}
+                style={{
+                  ...btn,
+                  color: 'white',
+                  background: '#b91c1c',
+                  border: '1px solid #991b1b',
+                  fontWeight: 600,
+                }}
               >
                 Cancel job
               </button>

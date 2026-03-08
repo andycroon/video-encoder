@@ -7,11 +7,11 @@ import StatusBadge from './StatusBadge';
 import CancelDialog from './CancelDialog';
 import JobCard from './JobCard';
 
-const STATUS_BAR: Record<JobStatus, string> = {
+const STATUS_BORDER: Record<JobStatus, string> = {
   QUEUED:    '#64748b',
-  RUNNING:   '#3b82f6',
+  RUNNING:   '#4080ff',
   PAUSED:    '#f59e0b',
-  DONE:      '#10b981',
+  DONE:      '#22c55e',
   FAILED:    '#ef4444',
   CANCELLED: '#3f3f46',
 };
@@ -56,39 +56,63 @@ export default function JobRow({ job }: Props) {
     ? job.currentStage.replace(/_/g, ' ')
     : '—';
 
+  const actionBtn: React.CSSProperties = {
+    height: 28, padding: '0 12px',
+    fontSize: 12, fontWeight: 500,
+    borderRadius: 4,
+    cursor: 'pointer',
+    border: '1px solid var(--border)',
+    background: 'var(--raised)',
+    color: 'var(--txt-2)',
+    whiteSpace: 'nowrap',
+  };
+
   return (
-    <div style={{ borderBottom: '1px solid var(--border-sub)' }}>
+    <>
       <div
-        className="flex items-center cursor-pointer select-none transition-colors hover:bg-white/[0.025]"
-        style={{ borderLeft: `2px solid ${STATUS_BAR[job.status]}` }}
         onClick={() => setExpanded(isExpanded ? null : job.id)}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 130px 200px 160px',
+          alignItems: 'center',
+          minHeight: 52,
+          cursor: 'pointer',
+          userSelect: 'none',
+          borderLeft: `3px solid ${STATUS_BORDER[job.status]}`,
+          transition: 'background 0.12s',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         {/* Filename */}
-        <span className="flex-1 px-4 py-2.5 text-sm font-mono truncate" style={{ color: 'var(--text-primary)' }}>
-          {basename(job.source_path)}
-        </span>
+        <div style={{ padding: '0 16px' }}>
+          <span className="mono" style={{ fontSize: 13, color: 'var(--txt)' }}>
+            {basename(job.source_path)}
+          </span>
+        </div>
 
         {/* Status */}
-        <span className="w-[100px] px-2 flex-shrink-0">
+        <div style={{ padding: '0 8px' }}>
           <StatusBadge status={job.status} />
-        </span>
+        </div>
 
         {/* Stage + ETA */}
-        <span className="w-[160px] px-2 flex-shrink-0">
-          <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>{stageDisplay}</span>
+        <div style={{ padding: '0 8px' }}>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--txt-2)' }}>{stageDisplay}</span>
           {etaText && (
-            <span className="text-xs font-mono ml-2" style={{ color: 'var(--text-muted)' }}>{etaText}</span>
+            <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)', marginLeft: 10 }}>
+              ETA {etaText}
+            </span>
           )}
-        </span>
+        </div>
 
         {/* Actions */}
-        <span className="w-[120px] px-3 flex-shrink-0 flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+        <div
+          style={{ padding: '0 12px 0 8px', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}
+          onClick={e => e.stopPropagation()}
+        >
           {job.status === 'RUNNING' && (
-            <button
-              onClick={handlePause}
-              className="px-2 py-0.5 text-xs rounded transition-colors hover:bg-white/[0.06]"
-              style={{ color: '#fcd34d', background: '#2a200e', border: '1px solid #78450a40' }}
-            >
+            <button onClick={handlePause} style={{ ...actionBtn, color: '#fcd34d', borderColor: '#78450a60', background: '#1f1408' }}>
               Pause
             </button>
           )}
@@ -96,20 +120,21 @@ export default function JobRow({ job }: Props) {
             <CancelDialog jobId={job.id} onCancelled={() => {}} />
           )}
           {(job.status === 'FAILED' || job.status === 'CANCELLED' || job.status === 'DONE') && (
-            <button
-              onClick={handleRetry}
-              className="px-2 py-0.5 text-xs rounded transition-colors"
-              style={{ color: 'var(--text-secondary)', background: 'var(--bg-raised)', border: '1px solid var(--border)' }}
-            >
+            <button onClick={handleRetry} style={actionBtn}>
               Retry
             </button>
           )}
-          <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>
-            {isExpanded ? '▴' : '▾'}
-          </span>
-        </span>
+          {/* Chevron */}
+          <svg
+            width="14" height="14" viewBox="0 0 14 14" fill="none"
+            style={{ color: 'var(--txt-3)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', marginLeft: 4, flexShrink: 0 }}
+          >
+            <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
       </div>
 
+      {/* Expanded card */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -117,13 +142,13 @@ export default function JobRow({ job }: Props) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15, ease: 'easeInOut' }}
-            className="overflow-hidden"
+            transition={{ duration: 0.18, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden' }}
           >
             <JobCard job={job} />
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
