@@ -262,56 +262,133 @@ asyncio.run(run_pipeline(
 
 ### Starting the Server
 
+From the project root, start uvicorn:
+
 ```bash
 python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
 ```
 
-The server starts on port 8000 by default. Override host/port with uvicorn flags:
+Wait for the line: `Application startup complete.`
+
+To change host or port:
 
 ```bash
 python -m uvicorn encoder.main:app --host 0.0.0.0 --port 9000
 ```
 
-Set the database path via environment variable (default: `encoder.db` in the working directory):
+To set a custom database path, set the `ENCODER_DB` environment variable before starting the server:
 
+**Linux / macOS / Git Bash:**
 ```bash
-ENCODER_DB=/data/encoder.db python -m uvicorn encoder.main:app
+export ENCODER_DB=/path/to/encoder.db
+python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
 ```
+
+**Windows (Command Prompt):**
+```cmd
+set ENCODER_DB=C:\path\to\encoder.db
+python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:ENCODER_DB = "C:\path\to\encoder.db"
+python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
+```
+
+If `ENCODER_DB` is not set, the database is created as `encoder.db` in the current working directory.
 
 On startup the server:
 1. Initialises the SQLite database (creates tables if missing)
 2. Recovers stale RUNNING jobs → QUEUED so they re-encode after a crash
 3. Re-enqueues any QUEUED jobs that survived a restart
 4. Starts the serial job scheduler (one job at a time)
-5. Starts the watch folder poller (if configured)
+5. Starts the watch folder poller (if `watch_folder_path` is configured in settings)
 
-### Job Endpoints
+### Testing the API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /jobs | Submit a new job `{"source_path": "/path/to/file.mkv"}` |
-| GET | /jobs | List all jobs (optional `?status=QUEUED`) |
-| GET | /jobs/{id} | Get a single job |
-| PATCH | /jobs/{id}/pause | Pause an active job |
-| DELETE | /jobs/{id} | Cancel a job |
-| POST | /jobs/{id}/retry | Retry a failed/cancelled job |
-| GET | /jobs/{id}/stream | SSE stream of job progress events |
+The following steps verify the server, job submission, and SSE streaming are all working. Run them in order with the server already started in a separate terminal.
 
-**Submit a job:**
+**Step 1 — confirm the server is up:**
 
+```bash
+curl http://127.0.0.1:8000/
+```
+
+Expected response: `{"status": "ok"}` (or similar). If curl times out, the server is not running.
+
+**Step 2 — read default settings:**
+
+```bash
+curl http://127.0.0.1:8000/settings
+```
+
+Expected response: JSON object with all 9 keys (`vmaf_min`, `vmaf_max`, `crf_start`, etc.) at their default values.
+
+**Step 3 — submit a job:**
+
+Replace `/path/to/your/file.mkv` with the absolute path to any MKV file on disk.
+
+**Linux / macOS / Git Bash:**
 ```bash
 curl -X POST http://127.0.0.1:8000/jobs \
   -H "Content-Type: application/json" \
-  -d '{"source_path": "/videos/source.mkv"}'
+  -d '{"source_path": "/path/to/your/file.mkv"}'
 ```
 
-**Watch SSE progress stream:**
+**Windows (Command Prompt / PowerShell):**
+```bash
+curl -X POST http://127.0.0.1:8000/jobs -H "Content-Type: application/json" -d "{\"source_path\": \"C:\\path\\to\\your\\file.mkv\"}"
+```
+
+Expected response:
+```json
+{"id": 1, "source_path": "...", "status": "QUEUED", ...}
+```
+
+Note the `id` value — you need it in the next step.
+
+**Step 4 — stream SSE progress events:**
+
+Replace `1` with the job ID returned in Step 3:
 
 ```bash
 curl -N http://127.0.0.1:8000/jobs/1/stream
 ```
 
-SSE named events: `stage`, `chunk_progress`, `chunk_complete`, `job_complete`, `error`, `warning`.
+The `-N` flag disables output buffering so events appear as they arrive. Leave this running.
+
+Expected output (events arrive within seconds of job starting):
+```
+event: stage
+data: {"job_id": 1, "stage": "ffv1", ...}
+
+event: stage
+data: {"job_id": 1, "stage": "scenedetect", ...}
+
+: ping
+
+event: job_complete
+data: {"job_id": 1, "status": "DONE"}
+```
+
+If the source file does not exist, you will see `event: error` followed by `event: job_complete` with `"status": "FAILED"` — this is expected and still confirms SSE is working correctly. The stream will close automatically after `job_complete`.
+
+If the stream hangs with no output, check the server terminal for errors.
+
+### Job Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /jobs | Submit a new encoding job |
+| GET | /jobs | List all jobs (optional `?status=QUEUED`) |
+| GET | /jobs/{id} | Get a single job by ID |
+| PATCH | /jobs/{id}/pause | Pause or unpause an active job |
+| DELETE | /jobs/{id} | Cancel a job |
+| POST | /jobs/{id}/retry | Retry a failed or cancelled job |
+| GET | /jobs/{id}/stream | SSE stream of job progress events |
+
+SSE named events emitted on `/jobs/{id}/stream`: `stage`, `chunk_progress`, `chunk_complete`, `job_complete`, `error`, `warning`.
 
 ### Settings API
 
@@ -326,15 +403,15 @@ SSE named events: `stage`, `chunk_progress`, `chunk_complete`, `job_complete`, `
 curl http://127.0.0.1:8000/settings
 ```
 
-**Update settings:**
+**Update one or more settings** (any subset of keys is valid — omitted keys are unchanged):
 
 ```bash
 curl -X PUT http://127.0.0.1:8000/settings \
   -H "Content-Type: application/json" \
-  -d '{"vmaf_min": 95.0, "vmaf_max": 97.0, "watch_folder_path": "/videos/inbox"}'
+  -d '{"vmaf_min": 95.0, "vmaf_max": 97.0}'
 ```
 
-Settings are persisted in SQLite and survive restarts.
+Settings are persisted in SQLite and survive server restarts.
 
 ### Global Defaults Reference
 
@@ -348,26 +425,29 @@ Settings are persisted in SQLite and survive restarts.
 | `audio_codec` | eac3 | Audio codec: `eac3`, `aac`, `flac`, or `copy` |
 | `output_path` | `` | Output directory for final MKVs (empty = `./output`) |
 | `temp_path` | `` | Working directory for intermediates (empty = `./temp`) |
-| `watch_folder_path` | `` | Auto-enqueue folder path (empty = disabled) |
+| `watch_folder_path` | `` | Directory to watch for new MKV files (empty = disabled) |
 
 ### Watch Folder
 
-Set `watch_folder_path` in settings to a directory path. The server polls every 10 seconds for
-new `.mkv` files. A file is enqueued only after its size is stable for 5 seconds (handles
-slow copies and NAS transfers). Source files are left in place (non-destructive).
+Set `watch_folder_path` to an absolute directory path to enable automatic job submission. The server polls every 10 seconds. A file is only enqueued after its size has been stable for 5 consecutive seconds — this handles slow network copies and NAS transfers. Source files are never moved or deleted.
 
+**Enable:**
 ```bash
 curl -X PUT http://127.0.0.1:8000/settings \
   -H "Content-Type: application/json" \
-  -d '{"watch_folder_path": "/videos/inbox"}'
+  -d '{"watch_folder_path": "/path/to/watch/folder"}'
 ```
 
-To disable the watch folder, set `watch_folder_path` to an empty string.
+**Disable:**
+```bash
+curl -X PUT http://127.0.0.1:8000/settings \
+  -H "Content-Type: application/json" \
+  -d '{"watch_folder_path": ""}'
+```
+
+After enabling, drop any `.mkv` file into the watch folder and the server will pick it up within 10 seconds and submit it as a new job automatically.
 
 ### Disk Space Pre-flight
 
-Before each job starts, the server checks that available disk space on the output drive is at
-least 3x the source file size. If space is insufficient, a `warning` SSE event is emitted on
-the job's `/stream` endpoint and a warning is logged. The job proceeds regardless — it does not
-block.
+Before starting each job, the server checks that available disk space on the output drive is at least 3× the source file size. If space is insufficient, a `warning` SSE event is emitted on the job's `/stream` endpoint and a warning is logged to the server console. The job proceeds regardless — it is a warning only, not a block.
 
