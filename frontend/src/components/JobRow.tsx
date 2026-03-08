@@ -1,5 +1,4 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useShallow } from 'zustand/react/shallow';
 import type { Job } from '../types';
 import { pauseJob, retryJob } from '../api/jobs';
 import { useJobsStore } from '../store/jobsStore';
@@ -23,9 +22,9 @@ function formatEta(ms: number | null): string {
 interface Props { job: Job }
 
 export default function JobRow({ job }: Props) {
-  const { expandedJobId, setExpanded, upsertJob } = useJobsStore(
-    useShallow(s => ({ expandedJobId: s.expandedJobId, setExpanded: s.setExpanded, upsertJob: s.upsertJob }))
-  );
+  const expandedJobId = useJobsStore(s => s.expandedJobId);
+  const setExpanded = useJobsStore(s => s.setExpanded);
+  const upsertJob = useJobsStore(s => s.upsertJob);
   const isExpanded = expandedJobId === job.id;
 
   const handlePause = async (e: React.MouseEvent) => {

@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { listJobs } from '../api/jobs';
 import { useJobsStore } from '../store/jobsStore';
 import JobRow from './JobRow';
 
 export default function JobList() {
-  const { jobs, setJobs } = useJobsStore(useShallow(s => ({ jobs: s.jobs, setJobs: s.setJobs })));
+  const jobs = useJobsStore(s => s.jobs);
+  const setJobs = useJobsStore(s => s.setJobs);
 
   useEffect(() => {
     const fetchJobs = async () => {
