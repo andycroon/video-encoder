@@ -26,7 +26,7 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
   const completedNames = new Set(stages.filter(s => s.completedAt).map(s => s.name));
 
   return (
-    <ol className="space-y-1">
+    <ol className="space-y-1.5">
       {ALL_STAGES.map((name) => {
         const isDone = completedNames.has(name);
         const isActive = name === currentStage;
@@ -38,9 +38,23 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
           : null;
 
         return (
-          <li key={name} className={`flex items-center gap-2 text-sm ${isPending ? 'text-neutral-600' : isDone ? 'text-neutral-400' : 'text-neutral-100'}`}>
-            <span className="w-4 text-center">
-              {isDone ? '✔' : isActive ? '▶' : '○'}
+          <li
+            key={name}
+            className={`flex items-center gap-2 text-sm ${
+              isPending ? 'text-neutral-600' : isDone ? 'text-neutral-400' : 'text-neutral-100'
+            }`}
+          >
+            <span className="w-4 flex items-center justify-center flex-shrink-0">
+              {isDone ? (
+                <span className="text-emerald-500 text-xs">✔</span>
+              ) : isActive ? (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+              ) : (
+                <span className="w-1.5 h-1.5 rounded-full bg-neutral-700 inline-block" />
+              )}
             </span>
             <span>
               {label}

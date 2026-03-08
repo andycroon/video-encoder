@@ -48,24 +48,24 @@ export default function JobRow({ job }: Props) {
     : job.status.toLowerCase();
 
   return (
-    <div className="border-b border-neutral-800">
+    <div className="border-b border-neutral-800/70">
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-neutral-900/50 select-none"
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.03] select-none transition-colors"
         onClick={() => setExpanded(isExpanded ? null : job.id)}
       >
         <span className="flex-1 text-sm text-neutral-200 font-mono truncate">
           {basename(job.source_path)}
         </span>
         <StatusBadge status={job.status} />
-        <span className="text-xs text-neutral-400 min-w-32 text-right">
+        <span className="text-xs text-neutral-500 min-w-32 text-right">
           {stageDisplay}
-          {etaText && <span className="ml-2 text-neutral-500">{etaText}</span>}
+          {etaText && <span className="ml-2 text-neutral-600">{etaText}</span>}
         </span>
         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
           {job.status === 'RUNNING' && (
             <button
               onClick={handlePause}
-              className="px-2 py-1 text-xs rounded bg-yellow-900/40 text-yellow-300 hover:bg-yellow-900/70"
+              className="px-2 py-1 text-xs rounded bg-amber-900/30 text-amber-400 hover:bg-amber-900/60 transition-colors"
             >
               Pause
             </button>
@@ -76,7 +76,7 @@ export default function JobRow({ job }: Props) {
           {(job.status === 'FAILED' || job.status === 'CANCELLED' || job.status === 'DONE') && (
             <button
               onClick={handleRetry}
-              className="px-2 py-1 text-xs rounded bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
+              className="px-2 py-1 text-xs rounded bg-neutral-700 text-neutral-300 hover:bg-neutral-600 transition-colors"
             >
               Retry
             </button>

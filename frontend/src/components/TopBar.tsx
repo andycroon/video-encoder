@@ -39,27 +39,27 @@ export default function TopBar({ onEditProfiles }: Props) {
   };
 
   return (
-    <div className="flex gap-3 items-center p-4 border-b border-neutral-800">
+    <div className="flex gap-2 items-center rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
       <input
-        className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-blue-500"
+        className="flex-1 bg-neutral-900 border border-neutral-700/80 rounded px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-blue-500/60 focus:bg-neutral-900 transition-colors font-mono"
         placeholder="Source file path…"
         value={path}
         onChange={e => setPath(e.target.value)}
         onKeyDown={e => e.key === 'Enter' && handleAdd()}
       />
       <Select.Root value={selectedId} onValueChange={setSelectedId}>
-        <Select.Trigger className="flex items-center gap-2 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-sm text-neutral-100 min-w-32">
+        <Select.Trigger className="flex items-center gap-2 bg-neutral-900 border border-neutral-700/80 rounded px-3 py-2 text-sm text-neutral-300 min-w-28 focus:outline-none focus:border-blue-500/60 transition-colors">
           <Select.Value placeholder="Profile" />
-          <Select.Icon>▾</Select.Icon>
+          <Select.Icon className="text-neutral-600 ml-auto">▾</Select.Icon>
         </Select.Trigger>
         <Select.Portal>
-          <Select.Content className="bg-neutral-900 border border-neutral-700 rounded shadow-xl z-50">
+          <Select.Content className="bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl z-50 overflow-hidden">
             <Select.Viewport>
               {profiles.map(p => (
                 <Select.Item
                   key={p.id}
                   value={String(p.id)}
-                  className="px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-800 cursor-pointer"
+                  className="px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-800 cursor-pointer focus:outline-none focus:bg-neutral-800"
                 >
                   <Select.ItemText>{p.name}</Select.ItemText>
                 </Select.Item>
@@ -71,7 +71,7 @@ export default function TopBar({ onEditProfiles }: Props) {
       {onEditProfiles && (
         <button
           onClick={onEditProfiles}
-          className="px-3 py-2 text-sm text-neutral-400 hover:text-neutral-100 border border-neutral-700 rounded"
+          className="px-3 py-2 text-sm text-neutral-500 hover:text-neutral-200 border border-neutral-700/80 rounded hover:border-neutral-600 transition-colors"
         >
           Edit
         </button>
@@ -79,7 +79,7 @@ export default function TopBar({ onEditProfiles }: Props) {
       <button
         onClick={handleAdd}
         disabled={!path.trim() || loading}
-        className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? 'Adding…' : 'Add'}
       </button>

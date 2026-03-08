@@ -1,1 +1,22 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-accent: 59 130 246;  /* blue-500 */
+    --color-running: 37 99 235;  /* blue-600 */
+    --color-active: 245 158 11;  /* amber-500 */
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code, pre, .font-mono {
+    font-family: ui-monospace, 'JetBrains Mono', 'Cascadia Code', monospace;
+  }
+}

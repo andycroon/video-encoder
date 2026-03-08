@@ -10,10 +10,10 @@ export default function JobCard({ job }: Props) {
   useJobStream(job.id, job.status === 'RUNNING');
 
   return (
-    <div className="border-t border-neutral-800">
-      <div className="grid grid-cols-2 gap-6 p-4">
+    <div className="border-t border-neutral-800 bg-neutral-900/30">
+      <div className="grid grid-cols-2 gap-6 p-4 pb-2">
         <div>
-          <h4 className="text-xs uppercase tracking-widest text-neutral-600 mb-3">Pipeline</h4>
+          <h4 className="text-xs uppercase tracking-widest text-neutral-600 mb-3 font-medium">Pipeline</h4>
           <StageList
             stages={job.stages}
             currentStage={job.currentStage}
@@ -21,7 +21,7 @@ export default function JobCard({ job }: Props) {
           />
         </div>
         <div>
-          <h4 className="text-xs uppercase tracking-widest text-neutral-600 mb-3">Chunks</h4>
+          <h4 className="text-xs uppercase tracking-widest text-neutral-600 mb-3 font-medium">Chunks</h4>
           <ChunkTable chunks={job.chunks} />
         </div>
       </div>
