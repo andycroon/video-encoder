@@ -1,13 +1,25 @@
 """FastAPI application for the video encoder web API."""
 from __future__ import annotations
 
+import json as _json
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-from encoder.db import init_db, recover_stale_jobs, get_settings, put_settings
+from encoder.db import (
+    init_db,
+    recover_stale_jobs,
+    get_settings,
+    put_settings,
+    create_job,
+    get_job,
+    list_jobs,
+    update_job_status,
+)
+from encoder.scheduler import Scheduler
 
 DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
 
@@ -16,7 +28,15 @@ DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
 async def lifespan(app: FastAPI):
     await init_db(DB_PATH)
     await recover_stale_jobs(DB_PATH)
+    scheduler = Scheduler(db_path=DB_PATH)
+    app.state.scheduler = scheduler
+    # Re-enqueue any jobs that were QUEUED at startup (survived restart)
+    queued = await list_jobs(DB_PATH, status="QUEUED")
+    for job in queued:
+        await scheduler.enqueue(job["id"])
+    await scheduler.start()
     yield
+    await scheduler.stop()
 
 
 app = FastAPI(title="Video Encoder API", lifespan=lifespan)
@@ -27,6 +47,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class JobSubmit(BaseModel):
+    source_path: str
+    config: dict = {}  # per-job overrides; merged with settings at run time
 
 
 @app.get("/")
@@ -43,3 +68,77 @@ async def read_settings():
 async def write_settings(body: dict):
     await put_settings(DB_PATH, body)
     return await get_settings(DB_PATH)
+
+
+@app.post("/jobs", status_code=201)
+async def submit_job(body: JobSubmit, request: Request):
+    settings = await get_settings(DB_PATH)
+    # Snapshot: start with settings defaults, apply per-job overrides
+    config_snapshot = {
+        "vmaf_min": settings["vmaf_min"],
+        "vmaf_max": settings["vmaf_max"],
+        "crf_min": settings["crf_min"],
+        "crf_max": settings["crf_max"],
+        "crf_start": settings["crf_start"],
+        "audio_codec": settings["audio_codec"],
+    }
+    config_snapshot.update(body.config)
+    job_id = await create_job(DB_PATH, body.source_path, config_snapshot)
+    await request.app.state.scheduler.enqueue(job_id)
+    job = await get_job(DB_PATH, job_id)
+    return job
+
+
+@app.get("/jobs")
+async def list_all_jobs(status: str | None = None):
+    return await list_jobs(DB_PATH, status=status)
+
+
+@app.get("/jobs/{job_id}")
+async def get_single_job(job_id: int):
+    job = await get_job(DB_PATH, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@app.patch("/jobs/{job_id}/pause")
+async def pause_job(job_id: int, request: Request):
+    job = await get_job(DB_PATH, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] not in ("RUNNING", "QUEUED"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot pause job in status {job['status']}",
+        )
+    request.app.state.scheduler.pause(job_id)
+    await update_job_status(DB_PATH, job_id, "PAUSED")
+    return await get_job(DB_PATH, job_id)
+
+
+@app.delete("/jobs/{job_id}", status_code=200)
+async def cancel_job(job_id: int, request: Request):
+    job = await get_job(DB_PATH, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    request.app.state.scheduler.cancel(job_id)
+    await update_job_status(DB_PATH, job_id, "CANCELLED")
+    return {"cancelled": job_id}
+
+
+@app.post("/jobs/{job_id}/retry", status_code=201)
+async def retry_job(job_id: int, request: Request):
+    job = await get_job(DB_PATH, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] not in ("FAILED", "CANCELLED"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot retry job in status {job['status']}",
+        )
+    stored_config = job["config"] if isinstance(job["config"], dict) else _json.loads(job["config"])
+    new_id = await create_job(DB_PATH, job["source_path"], stored_config)
+    await request.app.state.scheduler.enqueue(new_id)
+    new_job = await get_job(DB_PATH, new_id)
+    return new_job
