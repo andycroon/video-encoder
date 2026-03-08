@@ -22,8 +22,10 @@ Browser interface surfacing all queue management, progress monitoring, and confi
 
 ### Encoder profiles
 - Profiles replace the global settings concept in the UI — users pick a named profile per job
-- Profile fields: name, vmaf_min, vmaf_max, crf_min, crf_max, crf_start, audio_codec, x264 params
-- "Default" profile seeded from current global settings (vmaf 96.2–97.6, CRF 16–20, start 17, EAC3)
+- Profile fields: name, vmaf_min, vmaf_max, crf_min, crf_max, crf_start, audio_codec, x264_params (the full parameter block)
+- "Default" profile seeded with the exact original script parameters:
+  - VMAF: 96.2–97.6, CRF: 16–20, start 17, audio: EAC3
+  - x264 params: `partitions=i4x4+p8x8+b8x8`, `trellis 2`, `deblock -3:-3`, `b_qfactor 1`, `i_qfactor 0.71`, `qcomp 0.50`, `maxrate 12000K`, `bufsize 24000k`, `qmax 40`, `subq 10`, `me_method umh`, `me_range 24`, `b_strategy 2`, `bf 2`, `sc_threshold 0`, `g 48`, `keyint_min 48`, `-flags -loop`
 - Profiles stored in SQLite via new `/profiles` endpoints (new table, not localStorage)
 - Profile editor modal: opened via [Edit] button next to picker — create, edit, delete profiles from there
 - When adding a job: profile snapshot is passed as `config` override on `POST /jobs` (existing API field)
