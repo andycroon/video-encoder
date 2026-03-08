@@ -38,7 +38,7 @@ export default function LogPanel({ log }: Props) {
         >
           <path d="M3 2l4 3-4 3V2Z" fill="currentColor" />
         </svg>
-        ffmpeg log
+        Progress
         {log && (
           <span className="mono" style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt-3)', letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>
             {log.split('\n').length} lines

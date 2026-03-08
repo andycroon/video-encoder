@@ -63,17 +63,23 @@ class PipelineError(Exception):
 
 
 def _run_ffmpeg_cancellable(cmd: list, cancel_event=None, on_progress=None) -> None:
-    """Run an ffmpeg command. Calls on_progress(line) for every ffmpeg progress line (throttled)."""
+    """Run an ffmpeg command. Calls on_progress(line) throttled to ~0.5s, always emitting the final line."""
     proc = run_ffmpeg(cmd)
-    _n = 0
+    _last_emit = 0.0
+    _last_line = None
     for event in proc:
         if cancel_event and cancel_event.is_set():
             proc.cancel()
             raise PipelineError("Job cancelled", status="CANCELLED")
         if on_progress:
-            _n += 1
-            if _n % 3 == 0:  # throttle: ~1 update/sec at typical 3fps progress rate
-                on_progress(event["raw_line"])
+            _last_line = event["raw_line"]
+            now = time.monotonic()
+            if now - _last_emit >= 0.5:
+                on_progress(_last_line)
+                _last_emit = now
+    # Always emit the final progress line so short operations show something
+    if on_progress and _last_line:
+        on_progress(_last_line)
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +378,7 @@ def _write_concat_list(encoded_chunks: list[Path], concat_list_path: Path) -> No
             f.write(f"file '{chunk.as_posix()}'\n")
 
 
-def _concat_chunks(concat_list_path: Path, output_path: Path) -> None:
+def _concat_chunks(concat_list_path: Path, output_path: Path, on_progress=None) -> None:
     """Concatenate encoded chunks into a single video file using ffmpeg concat demuxer."""
     cmd = [
         FFMPEG, "-y",
@@ -382,14 +388,12 @@ def _concat_chunks(concat_list_path: Path, output_path: Path) -> None:
         str(output_path),
     ]
     try:
-        proc = run_ffmpeg(cmd)
-        for _ in proc:
-            pass
+        _run_ffmpeg_cancellable(cmd, on_progress=on_progress)
     except FfmpegError as e:
         raise PipelineError(f"Concat failed: {e}") from e
 
 
-def _mux_video_audio(video_path: Path, audio_path: Path, output_path: Path) -> None:
+def _mux_video_audio(video_path: Path, audio_path: Path, output_path: Path, on_progress=None) -> None:
     """Mux video and audio streams into final MKV."""
     cmd = [
         FFMPEG, "-y",
@@ -399,9 +403,7 @@ def _mux_video_audio(video_path: Path, audio_path: Path, output_path: Path) -> N
         str(output_path),
     ]
     try:
-        proc = run_ffmpeg(cmd)
-        for _ in proc:
-            pass
+        _run_ffmpeg_cancellable(cmd, on_progress=on_progress)
     except FfmpegError as e:
         raise PipelineError(f"Mux failed: {e}") from e
 
@@ -502,10 +504,10 @@ async def run_pipeline(
         print("[SceneDetect] Detecting scenes...")
         t0 = time.monotonic()
         scene_threshold = config.get("scene_threshold", 27.0)
-        _log("Analysing scene content with PySceneDetect…")
+        _log("Detecting scenes with PySceneDetect…")
         scenes = _detect_scenes(intermediate, scene_threshold)
         await update_step(db_path, step_id, "DONE")
-        _log(f"Found {len(scenes)} scene boundaries ({time.monotonic() - t0:.0f}s)")
+        _log(f"Found {len(scenes)} scene boundaries")
         print(f"[SceneDetect] {len(scenes)} scenes, done ({time.monotonic() - t0:.0f}s)")
 
         _check_cancel(cancel_event)
@@ -515,10 +517,8 @@ async def run_pipeline(
         step_id = await create_step(db_path, job_id, "ChunkSplit")
         print("[ChunkSplit] Splitting chunks...")
         t0 = time.monotonic()
-        _log(f"Splitting into {len(scenes) + 1} chunks at scene boundaries…")
         chunks = _split_chunks(intermediate, scenes, chunks_dir, cancel_event, on_progress=_log)
         await update_step(db_path, step_id, "DONE")
-        _log(f"Split complete — {len(chunks)} chunks ({time.monotonic() - t0:.0f}s)")
         print(f"[ChunkSplit] {len(chunks)} chunks, done ({time.monotonic() - t0:.0f}s)")
 
         _check_cancel(cancel_event)
@@ -582,13 +582,11 @@ async def run_pipeline(
         step_id = await create_step(db_path, job_id, "Concat")
         print("[Concat] Concatenating chunks...")
         t0 = time.monotonic()
-        _log(f"Merging {len(encoded_chunks)} encoded chunks…")
         concat_mp4 = temp_dir / "concat.mp4"
         concat_list = temp_dir / "concat_list.txt"
         _write_concat_list(encoded_chunks, concat_list)
-        _concat_chunks(concat_list, concat_mp4)
+        _concat_chunks(concat_list, concat_mp4, on_progress=_log)
         await update_step(db_path, step_id, "DONE")
-        _log(f"Merge complete ({time.monotonic() - t0:.0f}s)")
         print(f"[Concat] done ({time.monotonic() - t0:.0f}s)")
 
         _check_cancel(cancel_event)
@@ -596,11 +594,10 @@ async def run_pipeline(
         # Step 9: Mux
         _emit("stage", {"name": "mux"})
         step_id = await create_step(db_path, job_id, "Mux")
-        _log("Muxing video and audio into final MKV…")
         print("[Mux] Muxing video and audio...")
         t0 = time.monotonic()
         output_mkv = output_dir / (source_path.stem + ".mkv")
-        _mux_video_audio(concat_mp4, audio_file, output_mkv)
+        _mux_video_audio(concat_mp4, audio_file, output_mkv, on_progress=_log)
         await update_step(db_path, step_id, "DONE")
         print(f"[Mux] done ({time.monotonic() - t0:.0f}s)")
 
