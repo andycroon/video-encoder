@@ -101,7 +101,15 @@ Plans:
   4. A user can expand the ffmpeg log panel for any job and read the full captured stderr output
   5. Estimated time remaining is displayed for active jobs and updates as chunk throughput data accumulates
   6. README.md is complete: getting-started walkthrough, UI feature overview, troubleshooting section, and all sections from previous phases are accurate and up to date
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Vite scaffold + types + Zustand store + API wrappers + test stubs (Wave 1)
+- [ ] 05-02-PLAN.md — Backend /profiles CRUD + DB table + FastAPI static serving (Wave 1, parallel)
+- [ ] 05-03-PLAN.md — TopBar + JobRow + JobList + CancelDialog + StatusBadge + JobCard (Wave 2)
+- [ ] 05-04-PLAN.md — useJobStream + StageList + ChunkTable + LogPanel wired into JobCard (Wave 2, parallel)
+- [ ] 05-05-PLAN.md — frontend-design skill: visual polish pass on all components (Wave 3, has checkpoint)
+- [ ] 05-06-PLAN.md — ProfileModal + README Phase 5 section + final checkpoint (Wave 3, has checkpoint)
 
 ## Progress
 
@@ -114,4 +122,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. SQLite State Layer | 2/2 | Complete   | 2026-03-07 |
 | 3. Pipeline Runner | 3/4 | In Progress|  |
 | 4. Web API + Scheduler | 4/4 | Complete   | 2026-03-08 |
-| 5. React UI | 0/? | Not started | - |
+| 5. React UI | 0/6 | Not started | - |
