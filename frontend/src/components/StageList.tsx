@@ -44,7 +44,7 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
               alignItems: 'center',
               gap: 10,
               padding: '5px 0',
-              opacity: !isDone && !isActive ? 0.45 : 1,
+              opacity: 1,
             }}
           >
             {/* Step indicator */}
