@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-08T08:06:38.337Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-08T09:36:56.427Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 13
+  completed_plans: 10
   percent: 10
 ---
 
@@ -57,6 +57,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 03-pipeline-runner P02 | 8 | 2 tasks | 2 files |
 | Phase 03-pipeline-runner P03 | 4 | 2 tasks | 1 files |
 | Phase 03-pipeline-runner P04 | 5 | 2 tasks | 2 files |
+| Phase 04-web-api-scheduler P01 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Recent decisions affecting current work:
 - [Phase 03-pipeline-runner]: _encode_chunk_with_vmaf implemented as sync function — test contract requires synchronous call; async DB integration in run_pipeline orchestrator (Plan 04)
 - [Phase 03-04]: _concat_chunks and _mux_video_audio implemented as sync functions — test contract calls them without await; consistent with _encode_chunk_with_vmaf sync pattern
 - [Phase 03-04]: run_pipeline calls sync helpers directly (no run_in_executor) — acceptable for single-job CLI; Phase 4 can wrap in executor if needed
+- [Phase 04-01]: Settings stored as TEXT in SQLite with Python-side type coercion — avoids SQLite type affinity ambiguity
+- [Phase 04-01]: INSERT OR IGNORE seed pattern preserves existing user values across app restarts
+- [Phase 04-01]: put_settings silently ignores unknown keys — API is forgiving by design
 
 ### Pending Todos
 
@@ -117,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T08:06:38.334Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-web-api-scheduler/04-CONTEXT.md
+Last session: 2026-03-08T09:36:56.425Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
