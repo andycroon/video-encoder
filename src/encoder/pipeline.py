@@ -86,6 +86,12 @@ DEFAULT_CONFIG: dict = {
         "partitions": "i4x4+p8x8+b8x8",
         "trellis": "2",
         "deblock": "-3:-3",
+        "b_qfactor": "1",
+        "i_qfactor": "0.71",
+        "qcomp": "0.50",
+        "maxrate": "12000K",
+        "bufsize": "24000k",
+        "qmax": "40",
         "subq": "10",
         "me_method": "umh",
         "me_range": "24",
@@ -94,12 +100,6 @@ DEFAULT_CONFIG: dict = {
         "sc_threshold": "0",
         "g": "48",
         "keyint_min": "48",
-        "maxrate": "12000K",
-        "bufsize": "24000k",
-        "qmax": "40",
-        "qcomp": "0.50",
-        "b_qfactor": "1",
-        "i_qfactor": "0.71",
         "flags": "-loop",
     },
 }
@@ -211,13 +211,32 @@ def _encode_chunk_x264(
     cancel_event=None,
 ) -> None:
     """Encode a single FFV1 chunk to x264 at the given CRF."""
-    x264_params = config.get("x264_params", {})
-    params_str = _x264_params_str(x264_params)
-    cmd = [FFMPEG, "-y", "-i", str(chunk_path),
-           "-c:v", "libx264", "-crf", str(crf)]
-    if params_str:
-        cmd += ["-x264-params", params_str]
-    cmd += ["-an", str(output_path)]
+    p = config.get("x264_params", {})
+    bufsize = "14000k" if is_first else p.get("bufsize", "24000k")
+    cmd = [
+        FFMPEG, "-y", "-i", str(chunk_path),
+        "-c:v", "libx264", "-crf", str(crf),
+        "-x264-params", f"partitions={p.get('partitions', 'i4x4+p8x8+b8x8')}",
+        "-trellis", str(p.get("trellis", "2")),
+        "-deblock", str(p.get("deblock", "-3:-3")),
+        "-b_qfactor", str(p.get("b_qfactor", "1")),
+        "-i_qfactor", str(p.get("i_qfactor", "0.71")),
+        "-qcomp", str(p.get("qcomp", "0.50")),
+        "-maxrate", str(p.get("maxrate", "12000K")),
+        "-bufsize", bufsize,
+        "-qmax", str(p.get("qmax", "40")),
+        "-subq", str(p.get("subq", "10")),
+        "-me_method", str(p.get("me_method", "umh")),
+        "-me_range", str(p.get("me_range", "24")),
+        "-b_strategy", str(p.get("b_strategy", "2")),
+        "-movflags", "-faststart",
+        "-bf", str(p.get("bf", "2")),
+        "-sc_threshold", str(p.get("sc_threshold", "0")),
+        "-g", str(p.get("g", "48")),
+        "-keyint_min", str(p.get("keyint_min", "48")),
+        "-flags", str(p.get("flags", "-loop")),
+        "-an", str(output_path),
+    ]
     try:
         _run_ffmpeg_cancellable(cmd, cancel_event)
     except FfmpegError as e:
