@@ -1,4 +1,4 @@
-import { ChunkData } from '../types';
+import type { ChunkData } from '../types';
 
 interface Props { chunks: ChunkData[] }
 

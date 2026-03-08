@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import * as Select from '@radix-ui/react-select';
 import { listProfiles } from '../api/profiles';
 import { submitJob } from '../api/jobs';
-import { Profile } from '../types';
+import type { Profile } from '../types';
 import { useJobsStore } from '../store/jobsStore';
 
 interface Props {

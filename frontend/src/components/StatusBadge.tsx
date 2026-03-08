@@ -1,4 +1,4 @@
-import { JobStatus } from '../types';
+import type { JobStatus } from '../types';
 
 const COLORS: Record<JobStatus, string> = {
   QUEUED:    'bg-slate-600 text-slate-300',

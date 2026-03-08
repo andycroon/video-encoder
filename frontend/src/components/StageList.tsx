@@ -1,4 +1,4 @@
-import { StageData } from '../types';
+import type { StageData } from '../types';
 
 const ALL_STAGES = [
   'ffv1_encode', 'scene_detect', 'chunk_split', 'audio_transcode',

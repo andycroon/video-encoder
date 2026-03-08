@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useShallow } from 'zustand/react/shallow';
-import { Job } from '../types';
+import type { Job } from '../types';
 import { pauseJob, retryJob } from '../api/jobs';
 import { useJobsStore } from '../store/jobsStore';
 import StatusBadge from './StatusBadge';

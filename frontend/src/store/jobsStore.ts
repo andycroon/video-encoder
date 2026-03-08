@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Job, Profile, ChunkData } from '../types';
+import type { Job, Profile, ChunkData } from '../types';
 
 interface JobsState {
   jobs: Job[];

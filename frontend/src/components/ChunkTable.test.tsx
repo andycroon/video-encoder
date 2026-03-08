@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ChunkTable from './ChunkTable';
-import { ChunkData } from '../types';
+import type { ChunkData } from '../types';
 
 const completedChunk: ChunkData = {
   chunkIndex: 0, crf: 17, vmaf: 96.8, passes: 1,

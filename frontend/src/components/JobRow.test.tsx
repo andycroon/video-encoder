@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import JobRow from './JobRow';
 import * as jobsApi from '../api/jobs';
-import { Job } from '../types';
+import type { Job } from '../types';
 
 const baseJob: Job = {
   id: 1, source_path: '/videos/test.mkv', status: 'RUNNING', config: {}, created_at: '',

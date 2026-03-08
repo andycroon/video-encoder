@@ -1,4 +1,4 @@
-import { Job } from '../types';
+import type { Job } from '../types';
 import useJobStream from '../hooks/useJobStream';
 import StageList from './StageList';
 import ChunkTable from './ChunkTable';
