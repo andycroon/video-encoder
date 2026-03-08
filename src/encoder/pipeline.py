@@ -486,7 +486,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 1: FFV1 encode
-        _emit("stage", {"name": "ffv1"})
+        _emit("stage", {"name": "ffv1_encode"})
         step_id = await create_step(db_path, job_id, "FFV1")
         print("[FFV1] Encoding intermediate...")
         t0 = time.monotonic()
@@ -497,7 +497,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 2: Scene detect
-        _emit("stage", {"name": "scenedetect"})
+        _emit("stage", {"name": "scene_detect"})
         step_id = await create_step(db_path, job_id, "SceneDetect")
         print("[SceneDetect] Detecting scenes...")
         t0 = time.monotonic()
@@ -509,7 +509,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 3: Chunk split
-        _emit("stage", {"name": "chunksplit"})
+        _emit("stage", {"name": "chunk_split"})
         step_id = await create_step(db_path, job_id, "ChunkSplit")
         print("[ChunkSplit] Splitting chunks...")
         t0 = time.monotonic()
@@ -520,7 +520,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 4: Audio transcode
-        _emit("stage", {"name": "audiotranscode"})
+        _emit("stage", {"name": "audio_transcode"})
         step_id = await create_step(db_path, job_id, "AudioTranscode")
         print("[AudioTranscode] Transcoding audio...")
         t0 = time.monotonic()
@@ -534,7 +534,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Steps 5-7: Per-chunk CRF+VMAF feedback loop
-        _emit("stage", {"name": "encode", "total_chunks": len(chunks)})
+        _emit("stage", {"name": "chunk_encode", "total_chunks": len(chunks)})
         total = len(chunks)
         encoded_chunks = []
         for i, chunk_in in enumerate(chunks, 1):
@@ -569,7 +569,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 8: Concat
-        _emit("stage", {"name": "concat"})
+        _emit("stage", {"name": "merge"})
         step_id = await create_step(db_path, job_id, "Concat")
         print("[Concat] Concatenating chunks...")
         t0 = time.monotonic()
