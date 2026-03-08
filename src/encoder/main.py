@@ -95,8 +95,8 @@ async def submit_job(body: JobSubmit, request: Request):
     }
     config_snapshot.update(body.config)
     job_id = await create_job(DB_PATH, body.source_path, config_snapshot)
-    await request.app.state.scheduler.enqueue(job_id)
     job = await get_job(DB_PATH, job_id)
+    await request.app.state.scheduler.enqueue(job_id)
     return job
 
 
