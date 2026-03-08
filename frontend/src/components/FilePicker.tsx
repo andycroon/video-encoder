@@ -63,14 +63,6 @@ export default function FilePicker({ open, onClose, onSelect, initialPath }: Pro
 
             {/* Path bar */}
             <div className="px-4 py-2 border-b border-neutral-800 flex items-center gap-2">
-              {(parent !== null || path !== '') && (
-                <button
-                  onClick={() => load(parent ?? '')}
-                  className="text-neutral-400 hover:text-neutral-100 text-xs px-2 py-1 rounded hover:bg-neutral-800 transition-colors"
-                >
-                  ↑ Up
-                </button>
-              )}
               <span className="text-neutral-400 text-xs font-mono truncate flex-1">{path || 'Select a drive'}</span>
             </div>
 
@@ -87,6 +79,17 @@ export default function FilePicker({ open, onClose, onSelect, initialPath }: Pro
               )}
               {!loading && !error && (
                 <ul className="py-1">
+                  {(parent !== null || path !== '') && (
+                    <li>
+                      <button
+                        onClick={() => load(parent ?? '')}
+                        className="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800 flex items-center gap-2 transition-colors"
+                      >
+                        <span className="text-blue-400 text-xs">📁</span>
+                        ..
+                      </button>
+                    </li>
+                  )}
                   {dirs.map(e => (
                     <li key={e.path}>
                       <button
