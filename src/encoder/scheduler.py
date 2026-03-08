@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import datetime
 import logging
 import os
 import threading
@@ -15,10 +16,16 @@ from encoder.db import (
     append_job_log,
 )
 from encoder.pipeline import run_pipeline, DEFAULT_CONFIG
+from encoder.sse import event_bus
 
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
+
+
+def _utcnow_str() -> str:
+    """Return current UTC time as ISO 8601 string."""
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 class Scheduler:
@@ -100,6 +107,12 @@ class Scheduler:
         cancel_event = threading.Event()
         self._cancel_events[job_id] = cancel_event
 
+        # Emit initial stage event so SSE subscribers know the job is starting
+        event_bus.publish(job_id, "stage", {
+            "name": "starting",
+            "started_at": _utcnow_str(),
+        })
+
         loop = asyncio.get_running_loop()
         try:
             await loop.run_in_executor(
@@ -113,7 +126,20 @@ class Scheduler:
                 str(output_dir),
                 str(temp_dir),
             )
+            # Pipeline completed successfully — emit job_complete
+            finished_job = await get_job(self.db_path, job_id)
+            event_bus.publish(job_id, "job_complete", {
+                "status": finished_job["status"] if finished_job else "DONE",
+                "duration": 0.0,
+            })
+        except Exception as exc:
+            event_bus.publish(job_id, "error", {
+                "message": str(exc),
+                "step": "pipeline",
+            })
+            raise
         finally:
+            event_bus.close(job_id)
             self._cancel_events.pop(job_id, None)
             self._paused_jobs.discard(job_id)
 
@@ -131,10 +157,9 @@ def _run_pipeline_sync(source_path, db_path, job_id, config, cancel_event, outpu
 
 
 async def _disk_preflight(source: Path, output_dir: Path, job_id: int, db_path: str) -> None:
-    """Check available disk space. Emit warning log if below 3x source size.
+    """Check available disk space. Emit warning log and SSE event if below 3x source size.
 
     Per user decision: emit warning but do NOT block the job — proceed regardless.
-    Phase 5 SSE will surface the warning event; for now it is logged.
     """
     import shutil
     try:
@@ -147,5 +172,6 @@ async def _disk_preflight(source: Path, output_dir: Path, job_id: int, db_path: 
             msg = f"WARN disk_preflight: need {needed_gb:.1f} GiB, have {free_gb:.1f} GiB"
             logger.warning("Job %d: %s", job_id, msg)
             await append_job_log(db_path, job_id, msg)
+            event_bus.publish(job_id, "warning", {"message": msg})
     except OSError as exc:
         logger.warning("Job %d disk preflight failed: %s", job_id, exc)

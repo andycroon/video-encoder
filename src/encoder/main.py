@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from encoder.db import (
@@ -20,6 +21,7 @@ from encoder.db import (
     update_job_status,
 )
 from encoder.scheduler import Scheduler
+from encoder.sse import event_bus
 from encoder.watcher import WatchFolder
 
 DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
@@ -134,6 +136,32 @@ async def cancel_job(job_id: int, request: Request):
     request.app.state.scheduler.cancel(job_id)
     await update_job_status(DB_PATH, job_id, "CANCELLED")
     return {"cancelled": job_id}
+
+
+@app.get("/jobs/{job_id}/stream")
+async def stream_job(job_id: int):
+    """SSE endpoint streaming pipeline progress for a job.
+
+    Returns named events: stage, chunk_progress, chunk_complete, job_complete, error, warning.
+    Sends keepalive pings (`: ping`) every 15 seconds.
+    Stream terminates after job_complete or error event.
+    """
+    job = await get_job(DB_PATH, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    async def event_generator():
+        async for message in event_bus.subscribe(job_id):
+            yield message
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/jobs/{job_id}/retry", status_code=201)
