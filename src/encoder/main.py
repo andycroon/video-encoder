@@ -7,7 +7,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from encoder.db import (
@@ -19,6 +20,10 @@ from encoder.db import (
     get_job,
     list_jobs,
     update_job_status,
+    get_profiles,
+    create_profile_db,
+    update_profile_db,
+    delete_profile_db,
 )
 from encoder.scheduler import Scheduler
 from encoder.sse import event_bus
@@ -63,6 +68,17 @@ app.add_middleware(
 class JobSubmit(BaseModel):
     source_path: str
     config: dict = {}  # per-job overrides; merged with settings at run time
+
+
+class ProfileCreate(BaseModel):
+    name: str
+    config: dict
+    is_default: bool = False
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = None
+    config: dict | None = None
 
 
 @app.get("/")
@@ -179,3 +195,43 @@ async def retry_job(job_id: int, request: Request):
     await request.app.state.scheduler.enqueue(new_id)
     new_job = await get_job(DB_PATH, new_id)
     return new_job
+
+
+@app.get("/profiles")
+async def list_profiles():
+    profiles = await get_profiles(DB_PATH)
+    return profiles
+
+
+@app.post("/profiles", status_code=201)
+async def create_profile_route(body: ProfileCreate):
+    try:
+        profile = await create_profile_db(DB_PATH, body.name, body.config, body.is_default)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    return profile
+
+
+@app.put("/profiles/{profile_id}")
+async def update_profile_route(profile_id: int, body: ProfileUpdate):
+    updated = await update_profile_db(DB_PATH, profile_id, body.name, body.config)
+    if updated is None:
+        return JSONResponse(status_code=404, content={"detail": "Profile not found"})
+    return updated
+
+
+@app.delete("/profiles/{profile_id}", status_code=200)
+async def delete_profile_route(profile_id: int):
+    try:
+        found = await delete_profile_db(DB_PATH, profile_id)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    if not found:
+        return JSONResponse(status_code=404, content={"detail": "Profile not found"})
+    return {"deleted": profile_id}
+
+
+# Static file serving — MUST be last to avoid intercepting API routes
+_dist = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+if os.path.isdir(_dist):
+    app.mount("/", StaticFiles(directory=_dist, html=True), name="frontend")
