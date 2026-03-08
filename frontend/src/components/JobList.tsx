@@ -53,7 +53,7 @@ export default function JobList() {
           <path d="M12 16h8M16 12v8" stroke="#55555f" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
         <p style={{ color: 'var(--txt-3)', fontSize: 13, margin: 0 }}>No jobs in queue</p>
-        <p style={{ color: 'var(--txt-3)', fontSize: 12, margin: 0, opacity: 0.6 }}>Browse for a source file and click Add Job</p>
+        <p style={{ color: 'var(--txt-3)', fontSize: 12, margin: 0 }}>Browse for a source file and click Add Job</p>
       </div>
     );
   }
