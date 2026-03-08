@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-react-ui 05-01-PLAN.md
-last_updated: "2026-03-08T17:06:06.461Z"
+stopped_at: Completed 05-react-ui 05-04-PLAN.md
+last_updated: "2026-03-08T17:13:39.091Z"
 last_activity: "2026-03-08 - Completed quick task 1: outline the exact technical stack (backend + frontend) of this project in the README.md file"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 19
-  completed_plans: 15
+  completed_plans: 17
   percent: 10
 ---
 
@@ -63,6 +63,8 @@ Progress: [██░░░░░░░░] 10%
 | Phase 04-web-api-scheduler P03 | 896 | 2 tasks | 6 files |
 | Phase 05-react-ui P02 | 5 | 2 tasks | 2 files |
 | Phase 05-react-ui P01 | 236 | 2 tasks | 18 files |
+| Phase 05-react-ui P03 | 272 | 2 tasks | 10 files |
+| Phase 05-react-ui P04 | 5 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -111,6 +113,10 @@ Recent decisions affecting current work:
 - [Phase 05-react-ui]: Zustand store holds SSE-derived live state alongside REST-fetched fields on the same Job object
 - [Phase 05-react-ui]: ETA computed inline in chunk_complete reducer from average completed chunk duration
 - [Phase 05-react-ui]: Test stubs use it.todo() (not it.skip()) so vitest reports them as todo not skipped
+- [Phase 05-react-ui]: useShallow() required for Zustand object selectors in React components — plain object literal creates new reference each render causing infinite re-render loop
+- [Phase 05-react-ui]: CancelDialog test isolation requires vi.clearAllMocks() in beforeEach — spy call counts persist across tests in same describe block
+- [Phase 05-react-ui]: useJobStream uses addEventListener for all named SSE event types; onmessage is not used — named events require explicit listener registration
+- [Phase 05-react-ui]: ChunkTable shows '--' with animate-pulse for chunks where vmaf is null (still encoding); toFixed(2) used for completed VMAF values
 
 ### Pending Todos
 
@@ -144,6 +150,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T17:06:06.458Z
-Stopped at: Completed 05-react-ui 05-01-PLAN.md
+Last session: 2026-03-08T17:13:39.088Z
+Stopped at: Completed 05-react-ui 05-04-PLAN.md
 Resume file: None
