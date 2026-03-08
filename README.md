@@ -8,6 +8,40 @@ This project converts a PowerShell encoding script into a cross-platform Python 
 
 ---
 
+## Tech Stack
+
+### Backend
+
+| Technology | Version Pin | Role |
+|------------|-------------|------|
+| Python | >=3.9 | Runtime |
+| FastAPI | (latest stable) | HTTP framework + SSE streaming via StreamingResponse |
+| uvicorn | (latest stable) | ASGI server |
+| aiosqlite | >=0.22,<0.23 | Async SQLite access |
+| SQLite | (stdlib) | State persistence — jobs, chunks, steps, settings |
+| asyncio | (stdlib) | Async event loop, Queue, create_subprocess_exec |
+| ThreadPoolExecutor | (stdlib) | Runs blocking ffmpeg subprocesses on Windows (SelectorEventLoop workaround) |
+| PySceneDetect | >=0.6.7,<0.7 | Scene boundary detection (opencv variant) |
+| ffmpeg | external binary | Video encode/decode, VMAF scoring, audio transcode |
+
+### Frontend (Phase 5 — in progress)
+
+| Technology | Version Pin | Role |
+|------------|-------------|------|
+| React | 19 | UI framework |
+| TypeScript | (latest stable) | Type safety |
+| Vite | (latest stable) | Dev server + build tool |
+
+### Key Architecture Notes
+
+- Job queue: asyncio.Queue + asyncio.create_subprocess_exec (no Celery, no Redis)
+- Progress streaming: SSE (Server-Sent Events) — no WebSockets
+- Windows subprocess: ThreadPoolExecutor + sync Popen (asyncio SelectorEventLoop cannot run subprocesses on Windows)
+- Database mode: SQLite WAL — one writer, concurrent readers, survives restarts
+- VMAF model: bundled in assets/vmaf_v0.6.1.json (no runtime download needed)
+
+---
+
 ## System Prerequisites
 
 ### Python
