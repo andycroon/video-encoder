@@ -276,27 +276,7 @@ To change host or port:
 python -m uvicorn encoder.main:app --host 0.0.0.0 --port 9000
 ```
 
-To set a custom database path, set the `ENCODER_DB` environment variable before starting the server:
-
-**Linux / macOS / Git Bash:**
-```bash
-export ENCODER_DB=/path/to/encoder.db
-python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
-```
-
-**Windows (Command Prompt):**
-```cmd
-set ENCODER_DB=C:\path\to\encoder.db
-python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
-```
-
-**Windows (PowerShell):**
-```powershell
-$env:ENCODER_DB = "C:\path\to\encoder.db"
-python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
-```
-
-If `ENCODER_DB` is not set, the database is created as `encoder.db` in the current working directory.
+The database is created automatically as `encoder.db` in the current working directory on first run.
 
 On startup the server:
 1. Initialises the SQLite database (creates tables if missing)
