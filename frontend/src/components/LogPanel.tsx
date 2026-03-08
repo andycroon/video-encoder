@@ -9,7 +9,7 @@ export default function LogPanel({ log }: Props) {
     <div className="border-t border-neutral-800 mt-2">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full text-left px-4 py-2 text-xs text-neutral-600 hover:text-neutral-400 flex items-center gap-1 transition-colors"
+        className="w-full text-left px-4 py-2 text-xs text-neutral-400 hover:text-neutral-200 flex items-center gap-1 transition-colors"
         aria-label={open ? 'Hide ffmpeg log' : 'Show ffmpeg log'}
       >
         <span className="mr-1">{open ? '▴' : '▾'}</span>

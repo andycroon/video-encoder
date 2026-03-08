@@ -32,7 +32,7 @@ export default function JobList() {
 
   if (jobs.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-neutral-600 text-sm">
+      <div className="flex items-center justify-center h-64 text-neutral-400 text-sm">
         No jobs yet — add a source file path above
       </div>
     );

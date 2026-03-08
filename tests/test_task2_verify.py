@@ -7,7 +7,7 @@ from encoder.scheduler import Scheduler
 
 def test_stream_route_registered():
     routes = [r.path for r in app.routes]
-    assert "/jobs/{job_id}/stream" in routes, f"Missing /stream route. Routes: {routes}"
+    assert "/api/jobs/{job_id}/stream" in routes, f"Missing /stream route. Routes: {routes}"
 
 
 def test_event_bus_singleton_imported_in_main():

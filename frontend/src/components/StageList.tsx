@@ -41,7 +41,7 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
           <li
             key={name}
             className={`flex items-center gap-2 text-sm ${
-              isPending ? 'text-neutral-600' : isDone ? 'text-neutral-400' : 'text-neutral-100'
+              isPending ? 'text-neutral-500' : isDone ? 'text-neutral-300' : 'text-neutral-100'
             }`}
           >
             <span className="w-4 flex items-center justify-center flex-shrink-0">
@@ -59,12 +59,12 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
             <span>
               {label}
               {name === 'chunk_encode' && totalChunks && !isDone && (
-                <span className="text-neutral-500 text-xs ml-1">
+                <span className="text-neutral-400 text-xs ml-1">
                   {stages.filter(s => s.name.startsWith('chunk_encode')).length}/{totalChunks}
                 </span>
               )}
             </span>
-            {durationSec && <span className="ml-auto text-xs text-neutral-600">{durationSec}</span>}
+            {durationSec && <span className="ml-auto text-xs text-neutral-400">{durationSec}</span>}
           </li>
         );
       })}

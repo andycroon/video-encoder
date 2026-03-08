@@ -56,9 +56,9 @@ export default function JobRow({ job }: Props) {
           {basename(job.source_path)}
         </span>
         <StatusBadge status={job.status} />
-        <span className="text-xs text-neutral-500 min-w-32 text-right">
+        <span className="text-xs text-neutral-300 min-w-32 text-right">
           {stageDisplay}
-          {etaText && <span className="ml-2 text-neutral-600">{etaText}</span>}
+          {etaText && <span className="ml-2 text-neutral-400">{etaText}</span>}
         </span>
         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
           {job.status === 'RUNNING' && (

@@ -50,7 +50,7 @@ export default function TopBar({ onEditProfiles }: Props) {
       <Select.Root value={selectedId} onValueChange={setSelectedId}>
         <Select.Trigger className="flex items-center gap-2 bg-neutral-900 border border-neutral-700/80 rounded px-3 py-2 text-sm text-neutral-300 min-w-28 focus:outline-none focus:border-blue-500/60 transition-colors">
           <Select.Value placeholder="Profile" />
-          <Select.Icon className="text-neutral-600 ml-auto">▾</Select.Icon>
+          <Select.Icon className="text-neutral-400 ml-auto">▾</Select.Icon>
         </Select.Trigger>
         <Select.Portal>
           <Select.Content className="bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl z-50 overflow-hidden">
@@ -71,7 +71,7 @@ export default function TopBar({ onEditProfiles }: Props) {
       {onEditProfiles && (
         <button
           onClick={onEditProfiles}
-          className="px-3 py-2 text-sm text-neutral-500 hover:text-neutral-200 border border-neutral-700/80 rounded hover:border-neutral-600 transition-colors"
+          className="px-3 py-2 text-sm text-neutral-300 hover:text-white border border-neutral-700/80 rounded hover:border-neutral-500 transition-colors"
         >
           Edit
         </button>
