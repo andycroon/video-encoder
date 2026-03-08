@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Subprocess Foundation** - Cross-platform ffmpeg subprocess wrapper with progress parsing and graceful cancellation (completed 2026-03-07)
 - [x] **Phase 2: SQLite State Layer** - Durable job state schema with WAL mode and tested CRUD functions (completed 2026-03-07)
 - [ ] **Phase 3: Pipeline Runner** - Complete 10-step encoding pipeline as a CLI with VMAF CRF feedback loop
-- [ ] **Phase 4: Web API + Scheduler** - FastAPI REST + SSE endpoints, asyncio job scheduler, watch folder, global config
+- [x] **Phase 4: Web API + Scheduler** - FastAPI REST + SSE endpoints, asyncio job scheduler, watch folder, global config (completed 2026-03-08)
 - [ ] **Phase 5: React UI** - Browser interface surfacing all queue management, progress, and configuration capabilities
 
 ## Phase Details
@@ -113,5 +113,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Subprocess Foundation | 3/3 | Complete   | 2026-03-07 |
 | 2. SQLite State Layer | 2/2 | Complete   | 2026-03-07 |
 | 3. Pipeline Runner | 3/4 | In Progress|  |
-| 4. Web API + Scheduler | 3/4 | In Progress|  |
+| 4. Web API + Scheduler | 4/4 | Complete   | 2026-03-08 |
 | 5. React UI | 0/? | Not started | - |

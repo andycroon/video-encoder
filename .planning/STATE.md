@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-03-08T09:43:54.425Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-03-08T09:57:07.722Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 10
 ---
 
@@ -60,6 +60,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 04-web-api-scheduler P01 | 2 | 2 tasks | 4 files |
 | Phase 04-web-api-scheduler P02 | 7 | 2 tasks | 2 files |
 | Phase 04-web-api-scheduler P04 | 101 | 2 tasks | 4 files |
+| Phase 04-web-api-scheduler P03 | 896 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,9 @@ Recent decisions affecting current work:
 - [Phase 04-02]: retry endpoint creates new job row preserving original job history; lifespan re-enqueues surviving QUEUED jobs on startup for restart resilience
 - [Phase 04-web-api-scheduler]: seen_files table uses (path, mtime) composite PK — mtime change naturally triggers re-enqueue for re-copied files
 - [Phase 04-web-api-scheduler]: WatchFolder get_settings() fetched fresh each poll cycle — picks up watch_folder_path changes made via PUT /settings without restart
+- [Phase 04-web-api-scheduler]: EventBus termination check uses SSE wire format startswith('event: job_complete') not JSON content — _format_sse puts event type in event: line not data
+- [Phase 04-web-api-scheduler]: publish() is synchronous for dual-context use; event_bus.close() called in finally of _run_job for clean subscriber cleanup
+- [Phase 04-web-api-scheduler]: Stage/chunk events from inside pipeline are Phase 5 enhancement; Phase 4 publishes stage=starting, job_complete, error at job-level boundaries only
 
 ### Pending Todos
 
@@ -127,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T09:43:54.422Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-03-08T09:57:07.719Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
