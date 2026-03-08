@@ -44,11 +44,11 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
       return { ...job, chunks: [...job.chunks, newChunk] };
     }
     case 'chunk_complete': {
-      const d = data as { chunk_index: number; crf_used: number; vmaf_score: number };
+      const d = data as { chunk_index: number; crf_used: number; vmaf_score: number; iterations?: number };
       const chunks = job.chunks.map(c => {
         if (c.chunkIndex !== d.chunk_index) return c;
         const durationMs = c.startedAt ? now - c.startedAt : null;
-        return { ...c, crf: d.crf_used, vmaf: d.vmaf_score, completedAt: now, durationMs };
+        return { ...c, crf: d.crf_used, vmaf: d.vmaf_score, completedAt: now, durationMs, passes: d.iterations ?? c.passes };
       });
       // Compute ETA from completed chunks
       const completed = chunks.filter(c => c.durationMs !== null);
