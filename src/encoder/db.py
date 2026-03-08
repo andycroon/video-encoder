@@ -18,6 +18,23 @@ import aiosqlite
 # Number of seconds without a heartbeat before a RUNNING job is considered stale
 HEARTBEAT_STALE_SECONDS = 60
 
+# Default values for the settings table (all stored as TEXT in SQLite)
+SETTINGS_DEFAULTS: dict[str, str] = {
+    "vmaf_min": "96.2",
+    "vmaf_max": "97.6",
+    "crf_min": "16",
+    "crf_max": "20",
+    "crf_start": "17",
+    "audio_codec": "eac3",
+    "output_path": "",
+    "temp_path": "",
+    "watch_folder_path": "",
+}
+
+# Type coercion map: keys whose values should not stay as strings
+_SETTINGS_FLOAT_KEYS = {"vmaf_min", "vmaf_max"}
+_SETTINGS_INT_KEYS = {"crf_min", "crf_max", "crf_start"}
+
 
 def _utcnow() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -69,10 +86,59 @@ async def init_db(path: str) -> None:
                 started_at  TEXT,
                 finished_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
             CREATE INDEX IF NOT EXISTS idx_chunks_job_id ON chunks(job_id);
             """
         )
+        # Seed defaults — INSERT OR IGNORE keeps existing user values intact
+        await db.executemany(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+            list(SETTINGS_DEFAULTS.items()),
+        )
+        await db.commit()
+
+
+def _coerce_setting(key: str, value: str):
+    """Coerce a settings string value to the appropriate Python type."""
+    if key in _SETTINGS_FLOAT_KEYS:
+        return float(value)
+    if key in _SETTINGS_INT_KEYS:
+        return int(value)
+    return value
+
+
+async def get_settings(path: str) -> dict:
+    """
+    Return all settings as a dict with native Python types.
+
+    Numeric keys (vmaf_min, vmaf_max, crf_min, crf_max, crf_start) are coerced
+    from their stored TEXT representation to float/int.
+    """
+    async with get_db(path) as db:
+        async with db.execute("SELECT key, value FROM settings") as cursor:
+            rows = await cursor.fetchall()
+            return {row["key"]: _coerce_setting(row["key"], row["value"]) for row in rows}
+
+
+async def put_settings(path: str, updates: dict) -> None:
+    """
+    Persist a (partial) dict of settings updates to SQLite.
+
+    Unknown keys (not in SETTINGS_DEFAULTS) are silently ignored.
+    Numeric values are coerced to strings for uniform TEXT storage.
+    """
+    async with get_db(path) as db:
+        for key, value in updates.items():
+            if key not in SETTINGS_DEFAULTS:
+                continue
+            await db.execute(
+                "UPDATE settings SET value = ? WHERE key = ?",
+                (str(value), key),
+            )
         await db.commit()
 
 
