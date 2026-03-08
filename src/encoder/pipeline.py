@@ -62,6 +62,15 @@ class PipelineError(Exception):
         self.status = status
 
 
+def _run_ffmpeg_cancellable(cmd: list, cancel_event=None) -> None:
+    """Run an ffmpeg command, killing the process immediately if cancel_event is set."""
+    proc = run_ffmpeg(cmd)
+    for _ in proc:
+        if cancel_event and cancel_event.is_set():
+            proc.cancel()
+            raise PipelineError("Job cancelled", status="CANCELLED")
+
+
 # ---------------------------------------------------------------------------
 # Default configuration
 # ---------------------------------------------------------------------------
@@ -100,7 +109,7 @@ DEFAULT_CONFIG: dict = {
 # ---------------------------------------------------------------------------
 
 
-def _ffv1_encode(source_path: Path, output_path: Path) -> None:
+def _ffv1_encode(source_path: Path, output_path: Path, cancel_event=None) -> None:
     """Encode source to FFV1 lossless intermediate."""
     cmd = [
         FFMPEG, "-y", "-i", str(source_path),
@@ -111,9 +120,7 @@ def _ffv1_encode(source_path: Path, output_path: Path) -> None:
         str(output_path),
     ]
     try:
-        proc = run_ffmpeg(cmd)
-        for _ in proc:
-            pass
+        _run_ffmpeg_cancellable(cmd, cancel_event)
     except FfmpegError as e:
         raise PipelineError(f"FFV1 encode failed: {e}") from e
 
@@ -151,7 +158,7 @@ def _audio_cmd(ffmpeg_bin: str, source_path: Path, output_path: Path, codec: str
     return [ffmpeg_bin, "-y", "-i", str(source_path), "-vn"] + flags + [str(output_path)]
 
 
-def _split_chunks(ffv1_path: Path, timestamps: list[float], chunks_dir: Path) -> list[Path]:
+def _split_chunks(ffv1_path: Path, timestamps: list[float], chunks_dir: Path, cancel_event=None) -> list[Path]:
     """Split FFV1 intermediate into per-scene chunk files."""
     chunk_pattern = str(chunks_dir / "chunk%06d.mov")
 
@@ -174,9 +181,7 @@ def _split_chunks(ffv1_path: Path, timestamps: list[float], chunks_dir: Path) ->
         ]
 
     try:
-        proc = run_ffmpeg(cmd)
-        for _ in proc:
-            pass
+        _run_ffmpeg_cancellable(cmd, cancel_event)
     except FfmpegError as e:
         raise PipelineError(f"Chunk split failed: {e}") from e
 
@@ -186,14 +191,12 @@ def _split_chunks(ffv1_path: Path, timestamps: list[float], chunks_dir: Path) ->
     return chunks
 
 
-def _transcode_audio(source_path: Path, output_path: Path, codec: str = "eac3") -> None:
+def _transcode_audio(source_path: Path, output_path: Path, codec: str = "eac3", cancel_event=None) -> None:
     """Transcode audio track from source to target codec."""
     flags, _ext = AUDIO_CODECS[codec]
     cmd = [FFMPEG, "-y", "-i", str(source_path), "-vn"] + flags + [str(output_path)]
     try:
-        proc = run_ffmpeg(cmd)
-        for _ in proc:
-            pass
+        _run_ffmpeg_cancellable(cmd, cancel_event)
     except FfmpegError as e:
         raise PipelineError(f"Audio transcode failed: {e}") from e
 
@@ -205,6 +208,7 @@ def _encode_chunk_x264(
     config: dict,
     *,
     is_first: bool = True,
+    cancel_event=None,
 ) -> None:
     """Encode a single FFV1 chunk to x264 at the given CRF."""
     x264_params = config.get("x264_params", {})
@@ -215,9 +219,7 @@ def _encode_chunk_x264(
         cmd += ["-x264-params", params_str]
     cmd += ["-an", str(output_path)]
     try:
-        proc = run_ffmpeg(cmd)
-        for _ in proc:
-            pass
+        _run_ffmpeg_cancellable(cmd, cancel_event)
     except FfmpegError as e:
         raise PipelineError(f"x264 encode failed: {e}") from e
 
@@ -307,7 +309,7 @@ def _encode_chunk_with_vmaf(
     for i in range(10):
         _check_cancel(cancel_event)
 
-        _encode_chunk_x264(chunk_path, encoded_path, crf, config)
+        _encode_chunk_x264(chunk_path, encoded_path, crf, config, cancel_event=cancel_event)
         vmaf = _vmaf_score(encoded_path, chunk_path)
 
         best_crf = crf
@@ -459,7 +461,7 @@ async def run_pipeline(
         step_id = await create_step(db_path, job_id, "FFV1")
         print("[FFV1] Encoding intermediate...")
         t0 = time.monotonic()
-        _ffv1_encode(source_path, intermediate)
+        _ffv1_encode(source_path, intermediate, cancel_event)
         await update_step(db_path, step_id, "DONE")
         print(f"[FFV1] done ({time.monotonic() - t0:.0f}s)")
 
@@ -482,7 +484,7 @@ async def run_pipeline(
         step_id = await create_step(db_path, job_id, "ChunkSplit")
         print("[ChunkSplit] Splitting chunks...")
         t0 = time.monotonic()
-        chunks = _split_chunks(intermediate, scenes, chunks_dir)
+        chunks = _split_chunks(intermediate, scenes, chunks_dir, cancel_event)
         await update_step(db_path, step_id, "DONE")
         print(f"[ChunkSplit] {len(chunks)} chunks, done ({time.monotonic() - t0:.0f}s)")
 
@@ -496,7 +498,7 @@ async def run_pipeline(
         audio_codec = config.get("audio_codec", "eac3")
         _flags, audio_ext = AUDIO_CODECS[audio_codec]
         audio_file = temp_dir / f"audio.{audio_ext}"
-        _transcode_audio(source_path, audio_file, codec=audio_codec)
+        _transcode_audio(source_path, audio_file, codec=audio_codec, cancel_event=cancel_event)
         await update_step(db_path, step_id, "DONE")
         print(f"[AudioTranscode] done ({time.monotonic() - t0:.0f}s)")
 
