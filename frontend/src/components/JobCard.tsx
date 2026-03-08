@@ -15,8 +15,22 @@ const sectionHead: React.CSSProperties = {
   marginBottom: 14,
 };
 
+function vmafColor(v: number): string {
+  if (v >= 96) return '#22c55e';
+  if (v >= 93) return '#f59e0b';
+  return '#ef4444';
+}
+
 export default function JobCard({ job }: Props) {
   useJobStream(job.id, job.status === 'RUNNING');
+
+  const doneChunks = job.chunks.filter(c => c.vmaf !== null && c.crf !== null);
+  const avgVmaf = doneChunks.length > 0
+    ? doneChunks.reduce((s, c) => s + (c.vmaf ?? 0), 0) / doneChunks.length
+    : null;
+  const avgCrf = doneChunks.length > 0
+    ? doneChunks.reduce((s, c) => s + (c.crf ?? 0), 0) / doneChunks.length
+    : null;
 
   return (
     <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
@@ -36,8 +50,26 @@ export default function JobCard({ job }: Props) {
             <p style={{ ...sectionHead, margin: 0 }}>Chunks</p>
             {job.totalChunks != null && (
               <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)' }}>
-                {job.chunks.filter(c => c.completedAt != null).length} / {job.totalChunks}
+                {doneChunks.length} / {job.totalChunks}
               </span>
+            )}
+
+            {/* Averages — shown as soon as any chunks complete */}
+            {avgVmaf !== null && (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 11, color: 'var(--txt-3)' }}>
+                  avg VMAF{' '}
+                  <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: vmafColor(avgVmaf) }}>
+                    {avgVmaf.toFixed(2)}
+                  </span>
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--txt-3)' }}>
+                  avg CRF{' '}
+                  <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt-2)' }}>
+                    {avgCrf!.toFixed(1)}
+                  </span>
+                </span>
+              </div>
             )}
           </div>
           <ChunkTable chunks={job.chunks} />
