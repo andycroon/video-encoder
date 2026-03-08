@@ -116,8 +116,8 @@ class Scheduler:
 
         loop = asyncio.get_running_loop()
 
-        def on_stage(name: str) -> None:
-            event_bus.publish(job_id, "stage", {"name": name})
+        def publish(event_type: str, data: dict) -> None:
+            event_bus.publish(job_id, event_type, data)
 
         try:
             await loop.run_in_executor(
@@ -130,7 +130,7 @@ class Scheduler:
                 cancel_event,
                 str(output_dir),
                 str(temp_dir),
-                on_stage,
+                publish,
             )
             # Pipeline completed successfully — emit job_complete
             finished_job = await get_job(self.db_path, job_id)
@@ -150,13 +150,13 @@ class Scheduler:
             self._paused_jobs.discard(job_id)
 
 
-def _run_pipeline_sync(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir, on_stage=None):
+def _run_pipeline_sync(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir, publish=None):
     """Synchronous wrapper to run the async run_pipeline in a thread."""
     import asyncio as _asyncio
     loop = _asyncio.new_event_loop()
     try:
         loop.run_until_complete(
-            run_pipeline(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir, on_stage=on_stage)
+            run_pipeline(source_path, db_path, job_id, config, cancel_event, output_dir, temp_dir, publish=publish)
         )
     finally:
         loop.close()

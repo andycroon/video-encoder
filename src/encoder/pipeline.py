@@ -420,7 +420,7 @@ async def run_pipeline(
     cancel_event,
     output_dir,
     temp_dir,
-    on_stage=None,
+    publish=None,
 ) -> None:
     """Run the full 10-step encoding pipeline.
 
@@ -432,11 +432,11 @@ async def run_pipeline(
         cancel_event: threading.Event — pipeline polls this between steps.
         output_dir: Destination directory for the final MKV.
         temp_dir: Working directory for intermediates, chunks, and encoded files.
-        on_stage: Optional callable(stage_name) invoked at the start of each pipeline step.
+        publish: Optional callable(event_type, data) for SSE events.
     """
-    def _emit(name: str) -> None:
-        if on_stage:
-            on_stage(name)
+    def _emit(event_type: str, data: dict) -> None:
+        if publish:
+            publish(event_type, data)
     source_path = Path(source_path)
     db_path = str(db_path)
     output_dir = Path(output_dir)
@@ -457,7 +457,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 1: FFV1 encode
-        _emit("ffv1")
+        _emit("stage", {"name": "ffv1"})
         step_id = await create_step(db_path, job_id, "FFV1")
         print("[FFV1] Encoding intermediate...")
         t0 = time.monotonic()
@@ -468,7 +468,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 2: Scene detect
-        _emit("scenedetect")
+        _emit("stage", {"name": "scenedetect"})
         step_id = await create_step(db_path, job_id, "SceneDetect")
         print("[SceneDetect] Detecting scenes...")
         t0 = time.monotonic()
@@ -480,7 +480,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 3: Chunk split
-        _emit("chunksplit")
+        _emit("stage", {"name": "chunksplit"})
         step_id = await create_step(db_path, job_id, "ChunkSplit")
         print("[ChunkSplit] Splitting chunks...")
         t0 = time.monotonic()
@@ -491,7 +491,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 4: Audio transcode
-        _emit("audiotranscode")
+        _emit("stage", {"name": "audiotranscode"})
         step_id = await create_step(db_path, job_id, "AudioTranscode")
         print("[AudioTranscode] Transcoding audio...")
         t0 = time.monotonic()
@@ -505,7 +505,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Steps 5-7: Per-chunk CRF+VMAF feedback loop
-        _emit("encode")
+        _emit("stage", {"name": "encode", "total_chunks": len(chunks)})
         total = len(chunks)
         encoded_chunks = []
         for i, chunk_in in enumerate(chunks, 1):
@@ -528,12 +528,19 @@ async def run_pipeline(
                 db_path, job_id,
                 f"[{chunk_label}] CRF {crf} -> VMAF {vmaf:.2f} ({iters} iter)"
             )
+            _emit("chunk_complete", {
+                "chunk": i,
+                "total": total,
+                "crf": crf,
+                "vmaf": round(vmaf, 2),
+                "iterations": iters,
+            })
             encoded_chunks.append(chunk_out)
 
         _check_cancel(cancel_event)
 
         # Step 8: Concat
-        _emit("concat")
+        _emit("stage", {"name": "concat"})
         step_id = await create_step(db_path, job_id, "Concat")
         print("[Concat] Concatenating chunks...")
         t0 = time.monotonic()
@@ -547,7 +554,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 9: Mux
-        _emit("mux")
+        _emit("stage", {"name": "mux"})
         step_id = await create_step(db_path, job_id, "Mux")
         print("[Mux] Muxing video and audio...")
         t0 = time.monotonic()
