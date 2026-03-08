@@ -16,15 +16,15 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
   const now = Date.now();
   switch (type) {
     case 'stage': {
-      const d = data as { name: string; started_at?: string };
+      const d = data as { name: string; started_at?: string; total_chunks?: number };
       const now = new Date().toISOString();
-      // Mark the previous stage as completed
       const updatedStages = job.stages.map(s =>
         s.completedAt === null ? { ...s, completedAt: now } : s
       );
       return {
         ...job,
         currentStage: d.name,
+        totalChunks: d.total_chunks ?? job.totalChunks,
         stages: [...updatedStages, { name: d.name, startedAt: d.started_at ?? now, completedAt: null }],
       };
     }

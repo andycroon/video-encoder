@@ -546,6 +546,12 @@ async def run_pipeline(
             chunk_out = encoded_dir / chunk_in.name
             chunk_id = await create_chunk(db_path, job_id, i - 1)
             chunk_label = f"Chunk {i}/{total}"
+            _emit("chunk_progress", {
+                "chunk_index": i - 1,
+                "crf": config["crf_start"],
+                "pass": 1,
+            })
+            _log(f"Encoding chunk {i}/{total}…")
             crf, vmaf, iters = _encode_chunk_with_vmaf(
                 chunk_in, chunk_out, config, cancel_event, chunk_label, on_progress=_log
             )
@@ -562,10 +568,9 @@ async def run_pipeline(
                 f"[{chunk_label}] CRF {crf} -> VMAF {vmaf:.2f} ({iters} iter)"
             )
             _emit("chunk_complete", {
-                "chunk": i,
-                "total": total,
-                "crf": crf,
-                "vmaf": round(vmaf, 2),
+                "chunk_index": i - 1,
+                "crf_used": crf,
+                "vmaf_score": round(vmaf, 2),
                 "iterations": iters,
             })
             encoded_chunks.append(chunk_out)
