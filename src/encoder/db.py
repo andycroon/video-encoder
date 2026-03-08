@@ -31,6 +31,36 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "watch_folder_path": "",
 }
 
+# Default encoding profile matching the original PowerShell script parameters
+DEFAULT_PROFILE_CONFIG: dict = {
+    "vmaf_min": 96.2,
+    "vmaf_max": 97.6,
+    "crf_min": 16,
+    "crf_max": 20,
+    "crf_start": 17,
+    "audio_codec": "eac3",
+    "x264_params": {
+        "partitions": "i4x4+p8x8+b8x8",
+        "trellis": "2",
+        "deblock": "-3:-3",
+        "b_qfactor": "1",
+        "i_qfactor": "0.71",
+        "qcomp": "0.50",
+        "maxrate": "12000K",
+        "bufsize": "24000k",
+        "qmax": "40",
+        "subq": "10",
+        "me_method": "umh",
+        "me_range": "24",
+        "b_strategy": "2",
+        "bf": "2",
+        "sc_threshold": "0",
+        "g": "48",
+        "keyint_min": "48",
+        "flags": "-loop",
+    },
+}
+
 # Type coercion map: keys whose values should not stay as strings
 _SETTINGS_FLOAT_KEYS = {"vmaf_min", "vmaf_max"}
 _SETTINGS_INT_KEYS = {"crf_min", "crf_max", "crf_start"}
@@ -97,12 +127,23 @@ async def init_db(path: str) -> None:
                 mtime REAL NOT NULL,
                 PRIMARY KEY (path, mtime)
             );
+            CREATE TABLE IF NOT EXISTS profiles (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL UNIQUE,
+                config     TEXT NOT NULL,
+                is_default INTEGER NOT NULL DEFAULT 0
+            );
             """
         )
         # Seed defaults — INSERT OR IGNORE keeps existing user values intact
         await db.executemany(
             "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
             list(SETTINGS_DEFAULTS.items()),
+        )
+        # Seed Default profile with original script parameters
+        await db.execute(
+            "INSERT OR IGNORE INTO profiles (name, config, is_default) VALUES (?, ?, ?)",
+            ("Default", json.dumps(DEFAULT_PROFILE_CONFIG), 1),
         )
         await db.commit()
 
@@ -385,3 +426,70 @@ async def mark_file_seen(path: str, mtime: float, db_path: str) -> None:
             (path, mtime),
         )
         await db.commit()
+
+
+async def get_profiles(path: str) -> list[dict]:
+    """Return all profiles, each with config parsed from JSON."""
+    async with get_db(path) as db:
+        cursor = await db.execute("SELECT id, name, config, is_default FROM profiles ORDER BY id")
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "config": json.loads(row["config"]),
+            "is_default": bool(row["is_default"]),
+        }
+        for row in rows
+    ]
+
+
+async def create_profile_db(path: str, name: str, config: dict, is_default: bool = False) -> dict:
+    """Insert a new profile. Raises ValueError on duplicate name."""
+    async with get_db(path) as db:
+        try:
+            cursor = await db.execute(
+                "INSERT INTO profiles (name, config, is_default) VALUES (?, ?, ?)",
+                (name, json.dumps(config), int(is_default)),
+            )
+            await db.commit()
+            profile_id = cursor.lastrowid
+        except Exception as exc:
+            raise ValueError(f"Could not create profile '{name}': {exc}") from exc
+    return {"id": profile_id, "name": name, "config": config, "is_default": is_default}
+
+
+async def update_profile_db(path: str, profile_id: int, name: str | None, config: dict | None) -> dict | None:
+    """Update name and/or config for a profile. Returns updated row or None if not found."""
+    async with get_db(path) as db:
+        cursor = await db.execute("SELECT id, name, config, is_default FROM profiles WHERE id = ?", (profile_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        new_name = name if name is not None else row["name"]
+        new_config = json.dumps(config) if config is not None else row["config"]
+        await db.execute(
+            "UPDATE profiles SET name = ?, config = ? WHERE id = ?",
+            (new_name, new_config, profile_id),
+        )
+        await db.commit()
+    return {
+        "id": profile_id,
+        "name": new_name,
+        "config": json.loads(new_config),
+        "is_default": bool(row["is_default"]),
+    }
+
+
+async def delete_profile_db(path: str, profile_id: int) -> bool:
+    """Delete a profile. Returns False if not found. Raises ValueError if is_default=1."""
+    async with get_db(path) as db:
+        cursor = await db.execute("SELECT is_default FROM profiles WHERE id = ?", (profile_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return False
+        if row["is_default"]:
+            raise ValueError("Cannot delete the default profile")
+        await db.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
+        await db.commit()
+    return True
