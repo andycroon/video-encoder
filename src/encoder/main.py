@@ -233,6 +233,42 @@ async def delete_profile_route(profile_id: int):
     return {"deleted": profile_id}
 
 
+@api.get("/browse")
+async def browse_filesystem(path: str = ""):
+    import pathlib
+    import string
+
+    if not path:
+        if os.name == "nt":
+            drives = [
+                {"name": d + ":\\", "path": d + ":\\", "is_dir": True}
+                for d in string.ascii_uppercase
+                if os.path.exists(d + ":\\")
+            ]
+            return {"path": "", "parent": None, "entries": drives}
+        path = "/"
+
+    p = pathlib.Path(path)
+    if not p.exists() or not p.is_dir():
+        raise HTTPException(status_code=404, detail="Path not found")
+
+    entries = []
+    try:
+        items = sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+        for item in items:
+            try:
+                is_dir = item.is_dir()
+                if is_dir or item.suffix.lower() in {".mkv", ".mp4", ".mov", ".avi"}:
+                    entries.append({"name": item.name, "path": str(item), "is_dir": is_dir})
+            except PermissionError:
+                continue
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    parent = str(p.parent) if str(p.parent) != str(p) else None
+    return {"path": str(p), "parent": parent, "entries": entries}
+
+
 app.include_router(api)
 
 # Static file serving — MUST be last to avoid intercepting API routes

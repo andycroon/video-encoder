@@ -1,4 +1,5 @@
 import type { Profile } from '../types';
+export type { Profile };
 
 const BASE = '/api';
 
