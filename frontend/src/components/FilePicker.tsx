@@ -8,6 +8,7 @@ interface Props {
   onClose: () => void;
   onSelect: (path: string) => void;
   initialPath?: string;
+  type?: 'file' | 'folder';
 }
 
 const FolderIcon = ({ dim = false }: { dim?: boolean }) => (
@@ -35,7 +36,7 @@ const VideoIcon = () => (
   </svg>
 );
 
-export default function FilePicker({ open, onClose, onSelect, initialPath }: Props) {
+export default function FilePicker({ open, onClose, onSelect, initialPath, type = 'file' }: Props) {
   const [path, setPath] = useState('');
   const [parent, setParent] = useState<string | null>(null);
   const [entries, setEntries] = useState<BrowseEntry[]>([]);
@@ -87,7 +88,7 @@ export default function FilePicker({ open, onClose, onSelect, initialPath }: Pro
               style={{ borderBottom: '1px solid var(--border)' }}
             >
               <Dialog.Title className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                Select Source File
+                {type === 'folder' ? 'Select Folder' : 'Select Source File'}
               </Dialog.Title>
               <button
                 onClick={onClose}
@@ -153,8 +154,8 @@ export default function FilePicker({ open, onClose, onSelect, initialPath }: Pro
                     </li>
                   ))}
 
-                  {/* Files */}
-                  {files.map(e => (
+                  {/* Files — hidden in folder mode */}
+                  {type === 'file' && files.map(e => (
                     <li key={e.path} style={{ borderBottom: '1px solid var(--border-sub)' }}>
                       <button
                         onClick={() => handleEntry(e)}
@@ -189,8 +190,8 @@ export default function FilePicker({ open, onClose, onSelect, initialPath }: Pro
               className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
               style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-base)' }}
             >
-              <span className="flex-1 text-xs font-mono truncate" style={{ color: selected ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                {selected || 'No file selected'}
+              <span className="flex-1 text-xs font-mono truncate" style={{ color: 'var(--text-secondary)' }}>
+                {type === 'folder' ? (path || 'No folder selected') : (selected || 'No file selected')}
               </span>
               <button
                 onClick={onClose}
@@ -200,12 +201,15 @@ export default function FilePicker({ open, onClose, onSelect, initialPath }: Pro
                 Cancel
               </button>
               <button
-                onClick={() => { if (selected) { onSelect(selected); onClose(); } }}
-                disabled={!selected}
+                onClick={() => {
+                  const val = type === 'folder' ? path : selected;
+                  if (val) { onSelect(val); onClose(); }
+                }}
+                disabled={type === 'folder' ? !path : !selected}
                 className="px-4 py-1.5 text-xs font-semibold rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ color: 'white', background: '#2563eb' }}
               >
-                Select
+                {type === 'folder' ? 'Select this folder' : 'Select'}
               </button>
             </div>
           </div>

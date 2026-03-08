@@ -129,6 +129,7 @@ export default function SettingsModal({ open, onClose }: Props) {
         open={pickerField !== null}
         onClose={() => setPickerField(null)}
         onSelect={p => { if (pickerField) update(pickerField, p); }}
+        type="folder"
       />
     </>
   );
