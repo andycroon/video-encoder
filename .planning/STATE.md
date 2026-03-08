@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-08T09:36:56.427Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-08T09:40:22.197Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 11
   percent: 10
 ---
 
@@ -58,6 +58,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 03-pipeline-runner P03 | 4 | 2 tasks | 1 files |
 | Phase 03-pipeline-runner P04 | 5 | 2 tasks | 2 files |
 | Phase 04-web-api-scheduler P01 | 2 | 2 tasks | 4 files |
+| Phase 04-web-api-scheduler P02 | 7 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 04-01]: Settings stored as TEXT in SQLite with Python-side type coercion — avoids SQLite type affinity ambiguity
 - [Phase 04-01]: INSERT OR IGNORE seed pattern preserves existing user values across app restarts
 - [Phase 04-01]: put_settings silently ignores unknown keys — API is forgiving by design
+- [Phase 04-02]: Scheduler.cancel_events maps job_id to threading.Event for cross-thread cancellation from async HTTP layer to sync pipeline thread
+- [Phase 04-02]: retry endpoint creates new job row preserving original job history; lifespan re-enqueues surviving QUEUED jobs on startup for restart resilience
 
 ### Pending Todos
 
@@ -121,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T09:36:56.425Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-03-08T09:40:22.194Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None

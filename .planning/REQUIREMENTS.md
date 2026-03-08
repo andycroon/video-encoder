@@ -25,7 +25,7 @@
 - [ ] **QUEUE-03**: User can cancel an active or queued job (graceful ffmpeg termination, temp file cleanup)
 - [ ] **QUEUE-04**: User can retry a failed job
 - [x] **QUEUE-05**: Job state persists across application restarts (SQLite)
-- [ ] **QUEUE-06**: System monitors a configurable watch folder and auto-adds new MKV files to the queue
+- [x] **QUEUE-06**: System monitors a configurable watch folder and auto-adds new MKV files to the queue
 
 ### Progress & Monitoring
 
@@ -33,7 +33,7 @@
 - [ ] **PROG-02**: User sees per-chunk VMAF score and final CRF value as each chunk completes
 - [ ] **PROG-03**: User can view full ffmpeg stderr log per job
 - [ ] **PROG-04**: User sees estimated time remaining per active job (based on chunk throughput)
-- [ ] **PROG-05**: System warns user before starting a job if estimated disk space (3–5× source size) is insufficient
+- [x] **PROG-05**: System warns user before starting a job if estimated disk space (3–5× source size) is insufficient
 
 ### Configuration
 
@@ -97,12 +97,12 @@
 | QUEUE-03 | Phase 5: React UI | Pending |
 | QUEUE-04 | Phase 5: React UI | Pending |
 | QUEUE-05 | Phase 2: SQLite State Layer | Complete |
-| QUEUE-06 | Phase 4: Web API + Scheduler | Pending |
+| QUEUE-06 | Phase 4: Web API + Scheduler | Complete |
 | PROG-01 | Phase 5: React UI | Pending |
 | PROG-02 | Phase 5: React UI | Pending |
 | PROG-03 | Phase 5: React UI | Pending |
 | PROG-04 | Phase 5: React UI | Pending |
-| PROG-05 | Phase 4: Web API + Scheduler | Pending |
+| PROG-05 | Phase 4: Web API + Scheduler | Complete |
 | CONF-01 | Phase 3: Pipeline Runner | Complete |
 | CONF-02 | Phase 3: Pipeline Runner | Complete |
 | CONF-03 | Phase 3: Pipeline Runner | Complete |
