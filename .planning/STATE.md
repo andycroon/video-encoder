@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-08T17:04:00.610Z"
+stopped_at: Completed 05-react-ui 05-01-PLAN.md
+last_updated: "2026-03-08T17:06:06.461Z"
 last_activity: "2026-03-08 - Completed quick task 1: outline the exact technical stack (backend + frontend) of this project in the README.md file"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 19
-  completed_plans: 14
+  completed_plans: 15
   percent: 10
 ---
 
@@ -62,6 +62,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 04-web-api-scheduler P04 | 101 | 2 tasks | 4 files |
 | Phase 04-web-api-scheduler P03 | 896 | 2 tasks | 6 files |
 | Phase 05-react-ui P02 | 5 | 2 tasks | 2 files |
+| Phase 05-react-ui P01 | 236 | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,9 @@ Recent decisions affecting current work:
 - [Phase 04-web-api-scheduler]: Stage/chunk events from inside pipeline are Phase 5 enhancement; Phase 4 publishes stage=starting, job_complete, error at job-level boundaries only
 - [Phase 05-react-ui]: StaticFiles mount uses os.path.isdir guard so backend starts correctly before npm run build
 - [Phase 05-react-ui]: Profile config column stores JSON TEXT parsed to dict on read — consistent with jobs.config pattern
+- [Phase 05-react-ui]: Zustand store holds SSE-derived live state alongside REST-fetched fields on the same Job object
+- [Phase 05-react-ui]: ETA computed inline in chunk_complete reducer from average completed chunk duration
+- [Phase 05-react-ui]: Test stubs use it.todo() (not it.skip()) so vitest reports them as todo not skipped
 
 ### Pending Todos
 
@@ -140,6 +144,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T17:04:00.607Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-08T17:06:06.458Z
+Stopped at: Completed 05-react-ui 05-01-PLAN.md
 Resume file: None
