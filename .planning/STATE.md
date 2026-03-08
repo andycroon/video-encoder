@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 Phase: 2 of 5 (SQLite State Layer)
 Plan: 1 of 2 in current phase (02-01 complete)
 Status: In progress
-Last activity: 2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs
+Last activity: 2026-03-08 - Completed quick task 1: outline the exact technical stack (backend + frontend) of this project in the README.md file
 
 Progress: [██░░░░░░░░] 10%
 
@@ -114,6 +114,12 @@ None yet.
 - [Phase 3 readiness]: VMAF filter graph exact syntax for FFV1-to-x264 chunk comparison needs validation with real content before the CRF feedback loop is built. Risk: VMAF returns 0 silently (pitfall C5).
 - [Phase 3 readiness]: x264 libx264 option names from PROJECT.md should be validated against `ffmpeg -h encoder=libx264` on target machine before Phase 3 starts.
 - [Phase 3 readiness]: EAC3 encoding requires an ffmpeg build with the eac3 encoder — validate before Phase 3.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | outline the exact technical stack (backend + frontend) of this project in the README.md file | 2026-03-08 | 165ef21 | [1-outline-the-exact-technical-stack-backen](./quick/1-outline-the-exact-technical-stack-backen/) |
 
 ## Performance Metrics (Updated)
 
