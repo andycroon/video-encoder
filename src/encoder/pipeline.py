@@ -502,8 +502,10 @@ async def run_pipeline(
         print("[SceneDetect] Detecting scenes...")
         t0 = time.monotonic()
         scene_threshold = config.get("scene_threshold", 27.0)
+        _log("Analysing scene content with PySceneDetect…")
         scenes = _detect_scenes(intermediate, scene_threshold)
         await update_step(db_path, step_id, "DONE")
+        _log(f"Found {len(scenes)} scene boundaries ({time.monotonic() - t0:.0f}s)")
         print(f"[SceneDetect] {len(scenes)} scenes, done ({time.monotonic() - t0:.0f}s)")
 
         _check_cancel(cancel_event)
@@ -513,8 +515,10 @@ async def run_pipeline(
         step_id = await create_step(db_path, job_id, "ChunkSplit")
         print("[ChunkSplit] Splitting chunks...")
         t0 = time.monotonic()
+        _log(f"Splitting into {len(scenes) + 1} chunks at scene boundaries…")
         chunks = _split_chunks(intermediate, scenes, chunks_dir, cancel_event, on_progress=_log)
         await update_step(db_path, step_id, "DONE")
+        _log(f"Split complete — {len(chunks)} chunks ({time.monotonic() - t0:.0f}s)")
         print(f"[ChunkSplit] {len(chunks)} chunks, done ({time.monotonic() - t0:.0f}s)")
 
         _check_cancel(cancel_event)
@@ -573,11 +577,13 @@ async def run_pipeline(
         step_id = await create_step(db_path, job_id, "Concat")
         print("[Concat] Concatenating chunks...")
         t0 = time.monotonic()
+        _log(f"Merging {len(encoded_chunks)} encoded chunks…")
         concat_mp4 = temp_dir / "concat.mp4"
         concat_list = temp_dir / "concat_list.txt"
         _write_concat_list(encoded_chunks, concat_list)
         _concat_chunks(concat_list, concat_mp4)
         await update_step(db_path, step_id, "DONE")
+        _log(f"Merge complete ({time.monotonic() - t0:.0f}s)")
         print(f"[Concat] done ({time.monotonic() - t0:.0f}s)")
 
         _check_cancel(cancel_event)
@@ -585,6 +591,7 @@ async def run_pipeline(
         # Step 9: Mux
         _emit("stage", {"name": "mux"})
         step_id = await create_step(db_path, job_id, "Mux")
+        _log("Muxing video and audio into final MKV…")
         print("[Mux] Muxing video and audio...")
         t0 = time.monotonic()
         output_mkv = output_dir / (source_path.stem + ".mkv")

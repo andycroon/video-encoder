@@ -240,14 +240,49 @@ async def get_job(path: str, job_id: int) -> dict | None:
                 return None
             result = dict(row)
             result["config"] = json.loads(result["config"])
-            return result
+        async with db.execute(
+            "SELECT * FROM steps WHERE job_id = ? ORDER BY id", (job_id,)
+        ) as cursor:
+            steps = [dict(r) for r in await cursor.fetchall()]
+        _attach_stages(result, steps)
+        return result
+
+
+# Maps DB step_name -> SSE/UI stage name
+_STEP_TO_STAGE = {
+    "FFV1":           "ffv1_encode",
+    "SceneDetect":    "scene_detect",
+    "ChunkSplit":     "chunk_split",
+    "AudioTranscode": "audio_transcode",
+    "Concat":         "merge",
+    "Mux":            "mux",
+}
+
+
+def _attach_stages(job: dict, steps: list[dict]) -> dict:
+    """Attach stages and currentStage derived from steps rows to a job dict."""
+    stages = []
+    current_stage = None
+    for s in steps:
+        stage_name = _STEP_TO_STAGE.get(s["step_name"], s["step_name"].lower())
+        finished = s["status"] == "DONE"
+        stages.append({
+            "name": stage_name,
+            "startedAt": s.get("started_at") or "",
+            "completedAt": s.get("finished_at") if finished else None,
+        })
+        if not finished:
+            current_stage = stage_name
+    job["stages"] = stages
+    job["currentStage"] = current_stage
+    return job
 
 
 async def list_jobs(path: str, status: str | None = None) -> list[dict]:
     """
     Return all jobs, optionally filtered by status.
 
-    Returns a list of dicts with all job columns.
+    Returns a list of dicts with all job columns plus stages and currentStage.
     The config column is deserialized from JSON for each row.
     """
     async with get_db(path) as db:
@@ -268,6 +303,21 @@ async def list_jobs(path: str, status: str | None = None) -> list[dict]:
             d = dict(row)
             d["config"] = json.loads(d["config"])
             result.append(d)
+
+        if result:
+            job_ids = [d["id"] for d in result]
+            placeholders = ",".join("?" * len(job_ids))
+            async with db.execute(
+                f"SELECT * FROM steps WHERE job_id IN ({placeholders}) ORDER BY id",
+                job_ids,
+            ) as cursor:
+                all_steps = [dict(r) for r in await cursor.fetchall()]
+            steps_by_job: dict[int, list] = {}
+            for s in all_steps:
+                steps_by_job.setdefault(s["job_id"], []).append(s)
+            for d in result:
+                _attach_stages(d, steps_by_job.get(d["id"], []))
+
         return result
 
 

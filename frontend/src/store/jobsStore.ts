@@ -93,15 +93,17 @@ export const useJobsStore = create<JobsState>((set) => ({
     jobs: jobs.map(incoming => {
       const existing = state.jobs.find(j => j.id === incoming.id);
       if (!existing) return incoming;
-      // Preserve SSE-accumulated live state — REST poll doesn't have it
       return {
         ...incoming,
-        log: existing.log.length > incoming.log.length ? existing.log : incoming.log,
-        currentStage: existing.currentStage ?? incoming.currentStage,
-        stages: existing.stages.length > 0 ? existing.stages : incoming.stages,
+        // REST now returns stages from DB — use them. But keep SSE currentStage if REST has none
+        stages: incoming.stages.length > 0 ? incoming.stages : existing.stages,
+        currentStage: incoming.currentStage ?? existing.currentStage,
+        // REST doesn't have live chunk data — preserve SSE-accumulated
         chunks: existing.chunks.length > incoming.chunks.length ? existing.chunks : incoming.chunks,
         totalChunks: existing.totalChunks ?? incoming.totalChunks,
-        eta: existing.eta ?? incoming.eta,
+        eta: existing.eta,
+        // Preserve SSE log — REST only has chunk-completion lines
+        log: existing.log.length > incoming.log.length ? existing.log : incoming.log,
       };
     }),
   })),
