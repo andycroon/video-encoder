@@ -20,7 +20,7 @@
 
 ### Job Queue
 
-- [ ] **QUEUE-01**: User can add a job by entering a source file path in the web UI
+- [x] **QUEUE-01**: User can add a job by entering a source file path in the web UI
 - [ ] **QUEUE-02**: User can pause an active or queued job (waits for current pipeline step to finish)
 - [ ] **QUEUE-03**: User can cancel an active or queued job (graceful ffmpeg termination, temp file cleanup)
 - [ ] **QUEUE-04**: User can retry a failed job
@@ -92,7 +92,7 @@
 | PIPE-08 | Phase 3: Pipeline Runner | Complete |
 | PIPE-09 | Phase 3: Pipeline Runner | Complete |
 | PIPE-10 | Phase 1: Subprocess Foundation | Complete |
-| QUEUE-01 | Phase 5: React UI | Pending |
+| QUEUE-01 | Phase 5: React UI | Complete |
 | QUEUE-02 | Phase 5: React UI | Pending |
 | QUEUE-03 | Phase 5: React UI | Pending |
 | QUEUE-04 | Phase 5: React UI | Pending |
