@@ -43,47 +43,54 @@ export default function TopBar({ onEditProfiles, onOpenSettings }: Props) {
 
   return (
     <>
-      <div className="flex flex-col gap-2 rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
-        {/* File row */}
-        <div className="flex gap-2 items-center">
+      <div className="rounded" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
+        {/* Source file row */}
+        <div className="flex items-center gap-0" style={{ borderBottom: '1px solid var(--border-sub)' }}>
+          <span className="px-3 text-xs font-mono tracking-widest uppercase flex-shrink-0" style={{ color: 'var(--text-muted)' }}>SRC</span>
           <button
             onClick={() => setPickerOpen(true)}
-            className="flex-1 bg-neutral-800 border border-neutral-700/80 rounded px-3 py-2 text-sm text-left font-mono transition-colors hover:border-neutral-600 focus:outline-none focus:border-blue-500/60 truncate"
+            className="flex-1 px-2 py-2.5 text-sm text-left font-mono truncate transition-colors hover:bg-white/[0.02] focus:outline-none"
+            style={{ color: path ? 'var(--text-primary)' : 'var(--text-muted)', borderLeft: '1px solid var(--border-sub)' }}
           >
-            {path ? (
-              <span className="text-neutral-200">{path}</span>
-            ) : (
-              <span className="text-neutral-500">Browse for source file…</span>
-            )}
+            {path || 'Click to browse for source file…'}
           </button>
           {path && (
             <button
               onClick={() => setPath('')}
-              className="text-neutral-500 hover:text-neutral-300 px-2 py-2 text-sm transition-colors"
-              title="Clear"
+              className="px-3 py-2.5 text-sm transition-colors hover:bg-white/[0.03]"
+              style={{ color: 'var(--text-muted)', borderLeft: '1px solid var(--border-sub)' }}
             >
-              ×
+              ✕
             </button>
           )}
         </div>
 
         {/* Controls row */}
-        <div className="flex gap-2 items-center">
+        <div className="flex items-stretch">
+          {/* Profile picker */}
           <Select.Root value={selectedId} onValueChange={setSelectedId}>
-            <Select.Trigger className="flex items-center gap-2 bg-neutral-800 border border-neutral-700/80 rounded px-3 py-2 text-sm text-neutral-200 min-w-36 focus:outline-none focus:border-blue-500/60 transition-colors">
-              <Select.Value placeholder="Select profile" />
-              <Select.Icon className="text-neutral-400 ml-auto">▾</Select.Icon>
+            <Select.Trigger
+              className="flex items-center gap-2 px-3 py-2 text-sm focus:outline-none transition-colors hover:bg-white/[0.02] min-w-44"
+              style={{ color: 'var(--text-secondary)', borderRight: '1px solid var(--border-sub)' }}
+            >
+              <span className="text-xs uppercase tracking-widest font-medium flex-shrink-0" style={{ color: 'var(--text-muted)' }}>Profile</span>
+              <Select.Value placeholder="—" />
+              <Select.Icon className="ml-auto text-xs" style={{ color: 'var(--text-muted)' }}>▾</Select.Icon>
             </Select.Trigger>
             <Select.Portal>
-              <Select.Content className="bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl z-50 overflow-hidden">
+              <Select.Content
+                className="rounded shadow-2xl z-50 overflow-hidden"
+                style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}
+              >
                 <Select.Viewport>
                   {profiles.map(p => (
                     <Select.Item
                       key={p.id}
                       value={String(p.id)}
-                      className="px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-800 cursor-pointer focus:outline-none focus:bg-neutral-800"
+                      className="px-3 py-2 text-sm cursor-pointer focus:outline-none"
+                      style={{ color: 'var(--text-secondary)' }}
                     >
-                      <Select.ItemText>{p.name}{p.is_default ? ' (default)' : ''}</Select.ItemText>
+                      <Select.ItemText>{p.name}{p.is_default ? ' ·  default' : ''}</Select.ItemText>
                     </Select.Item>
                   ))}
                 </Select.Viewport>
@@ -91,30 +98,40 @@ export default function TopBar({ onEditProfiles, onOpenSettings }: Props) {
             </Select.Portal>
           </Select.Root>
 
+          <div className="flex-1" />
+
+          {/* Utility buttons */}
           {onEditProfiles && (
             <button
               onClick={onEditProfiles}
-              className="px-3 py-2 text-sm text-neutral-300 hover:text-white border border-neutral-700/80 rounded hover:border-neutral-500 transition-colors"
+              className="px-4 py-2 text-xs uppercase tracking-wider font-medium transition-colors hover:bg-white/[0.03]"
+              style={{ color: 'var(--text-muted)', borderLeft: '1px solid var(--border-sub)' }}
             >
               Profiles
             </button>
           )}
-
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              className="px-3 py-2 text-sm text-neutral-300 hover:text-white border border-neutral-700/80 rounded hover:border-neutral-500 transition-colors"
+              className="px-4 py-2 text-xs uppercase tracking-wider font-medium transition-colors hover:bg-white/[0.03]"
+              style={{ color: 'var(--text-muted)', borderLeft: '1px solid var(--border-sub)' }}
             >
               Settings
             </button>
           )}
 
+          {/* Add button */}
           <button
             onClick={handleAdd}
             disabled={!path.trim() || !selectedProfile || loading}
-            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ml-auto"
+            className="px-5 py-2 text-sm font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{
+              color: 'white',
+              background: !path.trim() || !selectedProfile || loading ? undefined : '#2563eb',
+              borderLeft: '1px solid var(--border-sub)',
+            }}
           >
-            {loading ? 'Adding…' : 'Add job'}
+            {loading ? 'Adding…' : 'Add Job'}
           </button>
         </div>
       </div>

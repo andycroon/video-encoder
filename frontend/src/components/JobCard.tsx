@@ -10,21 +10,30 @@ export default function JobCard({ job }: Props) {
   useJobStream(job.id, job.status === 'RUNNING');
 
   return (
-    <div className="border-t border-neutral-800 bg-neutral-900/30">
-      <div className="grid grid-cols-2 gap-6 p-4 pb-2">
-        <div>
-          <h4 className="text-xs uppercase tracking-widest text-neutral-400 mb-3 font-medium">Pipeline</h4>
-          <StageList
-            stages={job.stages}
-            currentStage={job.currentStage}
-            totalChunks={job.totalChunks}
-          />
+    <div style={{ background: 'var(--bg-panel)', borderTop: '1px solid var(--border)' }}>
+      <div className="grid grid-cols-2" style={{ borderBottom: '1px solid var(--border-sub)' }}>
+        {/* Pipeline */}
+        <div className="p-4" style={{ borderRight: '1px solid var(--border-sub)' }}>
+          <div className="text-xs uppercase tracking-widest font-medium mb-3" style={{ color: 'var(--text-muted)' }}>
+            Pipeline
+          </div>
+          <StageList stages={job.stages} currentStage={job.currentStage} totalChunks={job.totalChunks} />
         </div>
-        <div>
-          <h4 className="text-xs uppercase tracking-widest text-neutral-400 mb-3 font-medium">Chunks</h4>
+
+        {/* Chunks */}
+        <div className="p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-xs uppercase tracking-widest font-medium" style={{ color: 'var(--text-muted)' }}>Chunks</span>
+            {job.totalChunks && (
+              <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                {job.chunks.filter(c => c.completedAt !== null).length}/{job.totalChunks}
+              </span>
+            )}
+          </div>
           <ChunkTable chunks={job.chunks} />
         </div>
       </div>
+
       <LogPanel log={job.log} />
     </div>
   );

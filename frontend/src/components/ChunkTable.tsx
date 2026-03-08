@@ -2,37 +2,58 @@ import type { ChunkData } from '../types';
 
 interface Props { chunks: ChunkData[] }
 
+function vmafColor(v: number): string {
+  if (v >= 96) return '#10b981';
+  if (v >= 93) return '#f59e0b';
+  return '#ef4444';
+}
+
 export default function ChunkTable({ chunks }: Props) {
   if (chunks.length === 0) {
-    return <div className="text-neutral-400 text-xs italic">Chunk data will appear here during encoding</div>;
+    return (
+      <div className="flex items-center justify-center h-24 text-xs font-mono rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-base)', border: '1px solid var(--border-sub)' }}>
+        Waiting for chunk data…
+      </div>
+    );
   }
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs text-left">
-        <thead>
-          <tr className="text-neutral-400 border-b border-neutral-800">
-            <th className="pb-2 pr-4 font-medium">Chunk</th>
-            <th className="pb-2 pr-4 font-medium">CRF</th>
-            <th className="pb-2 pr-4 font-medium">VMAF</th>
-            <th className="pb-2 font-medium">Passes</th>
+    <div className="overflow-y-auto rounded" style={{ maxHeight: '220px', border: '1px solid var(--border-sub)' }}>
+      <table className="w-full text-xs" style={{ borderCollapse: 'collapse' }}>
+        <thead className="sticky top-0" style={{ background: 'var(--bg-raised)' }}>
+          <tr>
+            {['#', 'CRF', 'VMAF', 'Passes'].map(h => (
+              <th
+                key={h}
+                className="px-3 py-1.5 text-left font-medium uppercase tracking-wider"
+                style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', fontSize: '10px' }}
+              >
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {chunks.map((c, idx) => (
             <tr
               key={c.chunkIndex}
-              className={`border-b border-neutral-800/30 ${idx % 2 === 1 ? 'bg-white/[0.02]' : ''}`}
+              style={{
+                background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
+              }}
             >
-              <td className="py-1.5 pr-4 text-neutral-300 font-mono">{c.chunkIndex + 1}</td>
-              <td className="py-1.5 pr-4 text-neutral-300 font-mono">{c.crf ?? '--'}</td>
-              <td className="py-1.5 pr-4 font-mono">
+              <td className="px-3 py-1.5 font-mono" style={{ color: 'var(--text-muted)' }}>{c.chunkIndex + 1}</td>
+              <td className="px-3 py-1.5 font-mono" style={{ color: 'var(--text-secondary)' }}>{c.crf ?? '—'}</td>
+              <td className="px-3 py-1.5 font-mono font-medium">
                 {c.vmaf !== null ? (
-                  <span className="text-emerald-400">{c.vmaf.toFixed(2)}</span>
+                  <span style={{ color: vmafColor(c.vmaf) }}>{c.vmaf.toFixed(2)}</span>
                 ) : (
-                  <span className="text-neutral-600 animate-pulse">--</span>
+                  <span className="animate-pulse" style={{ color: 'var(--text-muted)' }}>--</span>
                 )}
               </td>
-              <td className="py-1.5 text-neutral-400 font-mono">{c.passes}</td>
+              <td className="px-3 py-1.5 font-mono" style={{ color: c.passes > 1 ? '#fcd34d' : 'var(--text-muted)' }}>
+                {c.passes}
+              </td>
             </tr>
           ))}
         </tbody>

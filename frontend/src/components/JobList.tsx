@@ -11,7 +11,6 @@ export default function JobList() {
     const fetchJobs = async () => {
       try {
         const data = await listJobs();
-        // Normalize SSE-derived fields that the REST response won't have
         const normalized = data.map(j => ({
           ...j,
           currentStage: j.currentStage ?? null,
@@ -21,9 +20,7 @@ export default function JobList() {
           eta: j.eta ?? null,
         }));
         setJobs(normalized as any);
-      } catch {
-        // Network error — keep existing state
-      }
+      } catch {}
     };
     fetchJobs();
     const id = setInterval(fetchJobs, 5000);
@@ -32,17 +29,34 @@ export default function JobList() {
 
   if (jobs.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-neutral-400 text-sm">
-        No jobs yet — add a source file path above
+      <div
+        className="flex flex-col items-center justify-center h-56 rounded"
+        style={{ border: '1px solid var(--border-sub)', borderStyle: 'dashed' }}
+      >
+        <div className="text-sm" style={{ color: 'var(--text-muted)' }}>No jobs in queue</div>
+        <div className="text-xs mt-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Browse for a source file above and click Add Job</div>
       </div>
     );
   }
 
   return (
-    <div>
-      {jobs.map(job => (
-        <JobRow key={job.id} job={job} />
-      ))}
+    <div className="rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+      {/* Column headers */}
+      <div
+        className="grid text-xs uppercase tracking-widest font-medium px-4 py-1.5"
+        style={{
+          gridTemplateColumns: '1fr 100px 160px 120px',
+          color: 'var(--text-muted)',
+          background: 'var(--bg-panel)',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <span>File</span>
+        <span>Status</span>
+        <span>Stage</span>
+        <span className="text-right">Actions</span>
+      </div>
+      {jobs.map(job => <JobRow key={job.id} job={job} />)}
     </div>
   );
 }

@@ -6,14 +6,14 @@ const ALL_STAGES = [
 ];
 
 const STAGE_LABELS: Record<string, string> = {
-  ffv1_encode: 'FFV1 encode',
-  scene_detect: 'Scene detect',
-  chunk_split: 'Chunk split',
-  audio_transcode: 'Audio transcode',
-  chunk_encode: 'Chunk encode',
-  merge: 'Merge',
-  mux: 'Mux',
-  cleanup: 'Cleanup',
+  ffv1_encode:     'FFV1 Encode',
+  scene_detect:    'Scene Detect',
+  chunk_split:     'Chunk Split',
+  audio_transcode: 'Audio Transcode',
+  chunk_encode:    'Chunk Encode',
+  merge:           'Merge',
+  mux:             'Mux',
+  cleanup:         'Cleanup',
 };
 
 interface Props {
@@ -26,12 +26,11 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
   const completedNames = new Set(stages.filter(s => s.completedAt).map(s => s.name));
 
   return (
-    <ol className="space-y-1.5">
-      {ALL_STAGES.map((name) => {
+    <ol className="space-y-0">
+      {ALL_STAGES.map((name, idx) => {
         const isDone = completedNames.has(name);
         const isActive = name === currentStage;
-        const isPending = !isDone && !isActive;
-        const label = STAGE_LABELS[name] ?? name;
+
         const stageData = stages.find(s => s.name === name);
         const durationSec = stageData?.completedAt && stageData?.startedAt
           ? ((new Date(stageData.completedAt).getTime() - new Date(stageData.startedAt).getTime()) / 1000).toFixed(1) + 's'
@@ -40,31 +39,54 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
         return (
           <li
             key={name}
-            className={`flex items-center gap-2 text-sm ${
-              isPending ? 'text-neutral-500' : isDone ? 'text-neutral-300' : 'text-neutral-100'
-            }`}
+            className="flex items-center gap-3 py-1"
           >
-            <span className="w-4 flex items-center justify-center flex-shrink-0">
+            {/* Step number / indicator */}
+            <span
+              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-xs font-mono font-medium"
+              style={
+                isDone
+                  ? { background: '#0f2e22', color: '#10b981', border: '1px solid #1a5c3e' }
+                  : isActive
+                  ? { background: '#1a2540', color: '#3b82f6', border: '1px solid #2d4a8a' }
+                  : { background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)' }
+              }
+            >
               {isDone ? (
-                <span className="text-emerald-500 text-xs">✔</span>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5l2.5 2.5 3.5-4" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               ) : isActive ? (
-                <span className="relative flex h-2 w-2">
+                <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400" />
                 </span>
               ) : (
-                <span className="w-1.5 h-1.5 rounded-full bg-neutral-700 inline-block" />
+                idx + 1
               )}
             </span>
-            <span>
-              {label}
+
+            {/* Label */}
+            <span
+              className="flex-1 text-xs font-medium"
+              style={{
+                color: isDone ? '#6ee7b7' : isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+              }}
+            >
+              {STAGE_LABELS[name] ?? name}
               {name === 'chunk_encode' && totalChunks && !isDone && (
-                <span className="text-neutral-400 text-xs ml-1">
-                  {stages.filter(s => s.name.startsWith('chunk_encode')).length}/{totalChunks}
+                <span className="ml-2 font-mono" style={{ color: 'var(--text-muted)' }}>
+                  {stages.filter(s => s.name === 'chunk_encode').length}/{totalChunks}
                 </span>
               )}
             </span>
-            {durationSec && <span className="ml-auto text-xs text-neutral-400">{durationSec}</span>}
+
+            {/* Duration */}
+            {durationSec && (
+              <span className="text-xs font-mono flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                {durationSec}
+              </span>
+            )}
           </li>
         );
       })}
