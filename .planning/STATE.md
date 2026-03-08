@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-03-08T09:40:22.197Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-03-08T09:43:54.425Z"
 last_activity: "2026-03-07 — Plan 02-01 complete: aiosqlite dependency + db.py skeleton + 7 RED test specs"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 10
 ---
 
@@ -59,6 +59,7 @@ Progress: [██░░░░░░░░] 10%
 | Phase 03-pipeline-runner P04 | 5 | 2 tasks | 2 files |
 | Phase 04-web-api-scheduler P01 | 2 | 2 tasks | 4 files |
 | Phase 04-web-api-scheduler P02 | 7 | 2 tasks | 2 files |
+| Phase 04-web-api-scheduler P04 | 101 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,8 @@ Recent decisions affecting current work:
 - [Phase 04-01]: put_settings silently ignores unknown keys — API is forgiving by design
 - [Phase 04-02]: Scheduler.cancel_events maps job_id to threading.Event for cross-thread cancellation from async HTTP layer to sync pipeline thread
 - [Phase 04-02]: retry endpoint creates new job row preserving original job history; lifespan re-enqueues surviving QUEUED jobs on startup for restart resilience
+- [Phase 04-web-api-scheduler]: seen_files table uses (path, mtime) composite PK — mtime change naturally triggers re-enqueue for re-copied files
+- [Phase 04-web-api-scheduler]: WatchFolder get_settings() fetched fresh each poll cycle — picks up watch_folder_path changes made via PUT /settings without restart
 
 ### Pending Todos
 
@@ -124,6 +127,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T09:40:22.194Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-03-08T09:43:54.422Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
