@@ -83,11 +83,15 @@ async def get_db(path: str) -> AsyncIterator:
 async def init_db(path: str) -> None:
     """Create all tables and enable WAL mode. Safe to call repeatedly (CREATE IF NOT EXISTS)."""
     async with get_db(path) as db:
-        try:
-            await db.execute("ALTER TABLE jobs ADD COLUMN total_chunks INTEGER")
-            await db.commit()
-        except Exception:
-            pass  # Column already exists
+        for col_sql in [
+            "ALTER TABLE jobs ADD COLUMN total_chunks INTEGER",
+            "ALTER TABLE jobs ADD COLUMN eta_ms INTEGER",
+        ]:
+            try:
+                await db.execute(col_sql)
+                await db.commit()
+            except Exception:
+                pass  # Column already exists
         await db.executescript(
             """
             CREATE TABLE IF NOT EXISTS jobs (
@@ -364,6 +368,7 @@ async def list_jobs(path: str, status: str | None = None) -> list[dict]:
                 ]
                 # Prefer the stored total_chunks value; fall back to DB chunk row count
                 d["totalChunks"] = d.get("total_chunks") or (len(all_job_chunks) if all_job_chunks else None)
+                d["eta"] = d.get("eta_ms")
 
         return result
 
@@ -372,6 +377,13 @@ async def set_job_total_chunks(path: str, job_id: int, total: int) -> None:
     """Store the total chunk count for a job so the UI can show accurate X/Y progress."""
     async with get_db(path) as db:
         await db.execute("UPDATE jobs SET total_chunks=? WHERE id=?", (total, job_id))
+        await db.commit()
+
+
+async def set_job_eta(path: str, job_id: int, eta_ms: int | None) -> None:
+    """Store the current ETA in milliseconds on the job row."""
+    async with get_db(path) as db:
+        await db.execute("UPDATE jobs SET eta_ms=? WHERE id=?", (eta_ms, job_id))
         await db.commit()
 
 

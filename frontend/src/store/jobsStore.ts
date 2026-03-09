@@ -12,13 +12,6 @@ interface JobsState {
   handleSseEvent: (jobId: number, type: string, data: unknown) => void;
 }
 
-function computeEta(chunks: ChunkData[], totalChunks: number | null): number | null {
-  const completed = chunks.filter(c => c.durationMs !== null && c.durationMs! > 0);
-  const total = totalChunks ?? chunks.length;
-  if (completed.length === 0 || total <= chunks.length) return null;
-  const avgMs = completed.reduce((s, c) => s + (c.durationMs ?? 0), 0) / completed.length;
-  return (total - chunks.length) * avgMs;
-}
 
 function applyEvent(job: Job, type: string, data: unknown): Job {
   const now = Date.now();
@@ -59,7 +52,8 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
         const durationMs = c.startedAt ? now - c.startedAt : null;
         return { ...c, crf: d.crf_used, vmaf: d.vmaf_score, completedAt: now, durationMs, passes: d.iterations ?? c.passes };
       });
-      return { ...job, chunks, eta: computeEta(chunks, job.totalChunks) };
+      const eta_ms = (data as { eta_ms?: number | null }).eta_ms ?? null;
+      return { ...job, chunks, eta: eta_ms };
     }
     case 'job_complete': {
       const d = data as { status: string; duration: number };
@@ -107,12 +101,8 @@ export const useJobsStore = create<JobsState>((set) => ({
         // Running jobs: always use SSE-accumulated log — REST only has chunk completion summaries
         // Finished jobs: use DB log
         log: incoming.status === 'RUNNING' ? existing.log : incoming.log,
-        // Recompute ETA from REST chunk durationMs (populated from DB timestamps)
-        // Use existing SSE eta if REST can't compute one
-        eta: computeEta(
-          existing.chunks.length > 0 ? existing.chunks : incoming.chunks,
-          incoming.totalChunks ?? existing.totalChunks
-        ) ?? existing.eta,
+        // ETA comes directly from DB (computed in pipeline) — just use it
+        eta: incoming.eta ?? existing.eta,
       };
     }),
   })),

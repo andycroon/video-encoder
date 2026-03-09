@@ -34,6 +34,7 @@ from encoder.db import (
     create_step,
     init_db,
     recover_stale_jobs,
+    set_job_eta,
     set_job_total_chunks,
     update_chunk,
     update_job_status,
@@ -566,6 +567,7 @@ async def run_pipeline(
         chunk_step_id = await create_step(db_path, job_id, "ChunkEncode")
         total = len(chunks)
         encoded_chunks = []
+        chunk_durations: list[float] = []  # ms per completed chunk
         for i, chunk_in in enumerate(chunks, 1):
             _check_cancel(cancel_event)
             chunk_out = encoded_dir / chunk_in.name
@@ -577,9 +579,11 @@ async def run_pipeline(
                 "pass": 1,
             })
             _log(f"Encoding chunk {i}/{total}…")
+            t_chunk = time.monotonic()
             crf, vmaf, iters = _encode_chunk_with_vmaf(
                 chunk_in, chunk_out, config, cancel_event, chunk_label, on_progress=_log
             )
+            chunk_durations.append((time.monotonic() - t_chunk) * 1000)
             await update_chunk(
                 db_path,
                 chunk_id,
@@ -588,6 +592,14 @@ async def run_pipeline(
                 iterations=iters,
                 status="DONE",
             )
+            # Compute and store ETA in DB
+            remaining = total - i
+            if remaining > 0 and chunk_durations:
+                avg_ms = sum(chunk_durations) / len(chunk_durations)
+                eta_ms = int(avg_ms * remaining)
+            else:
+                eta_ms = None
+            await set_job_eta(db_path, job_id, eta_ms)
             await append_job_log(
                 db_path, job_id,
                 f"[{chunk_label}] CRF {crf} -> VMAF {vmaf:.2f} ({iters} iter)"
@@ -597,6 +609,7 @@ async def run_pipeline(
                 "crf_used": crf,
                 "vmaf_score": round(vmaf, 2),
                 "iterations": iters,
+                "eta_ms": eta_ms,
             })
             encoded_chunks.append(chunk_out)
 
