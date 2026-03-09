@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 05-react-ui 05-05-PLAN.md (checkpoint: awaiting human-verify)"
-last_updated: "2026-03-08T17:18:27.730Z"
+stopped_at: Completed 05-react-ui 05-05-PLAN.md
+last_updated: "2026-03-09T10:34:43.026Z"
 last_activity: "2026-03-08 - Completed quick task 1: outline the exact technical stack (backend + frontend) of this project in the README.md file"
 progress:
   total_phases: 5
@@ -120,6 +120,10 @@ Recent decisions affecting current work:
 - [Phase 05-react-ui]: ChunkTable shows '--' with animate-pulse for chunks where vmaf is null (still encoding); toFixed(2) used for completed VMAF values
 - [Phase 05-react-ui]: Active stage indicator uses animate-ping pulsing dot (amber-500) instead of plain triangle for clearer visual feedback
 - [Phase 05-react-ui]: ProfileModal stub created in Plan 05 so App.tsx compiles; form implementation deferred to Plan 06
+- [Phase 05-react-ui]: All FastAPI routes prefixed with /api — Vite proxy targets /api base path, no rewrite needed
+- [Phase 05-react-ui]: Stages and chunks stored in DB REST response — UI state survives page refresh without SSE
+- [Phase 05-react-ui]: ffmpeg stderr forwarded unfiltered as SSE log events — client replaces progress lines in-place by matching tqdm/ffmpeg patterns
+- [Phase 05-react-ui]: Human-friendly STAGE_LABELS dict shared between frontend JobRow and backend — single source of truth for display names
 
 ### Pending Todos
 
@@ -153,6 +157,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T17:18:27.727Z
-Stopped at: Completed 05-react-ui 05-05-PLAN.md (checkpoint: awaiting human-verify)
+Last session: 2026-03-09T10:34:35.272Z
+Stopped at: Completed 05-react-ui 05-05-PLAN.md
 Resume file: None
