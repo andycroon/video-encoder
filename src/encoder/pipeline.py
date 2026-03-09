@@ -34,6 +34,7 @@ from encoder.db import (
     create_step,
     init_db,
     recover_stale_jobs,
+    set_job_total_chunks,
     update_chunk,
     update_job_status,
     update_step,
@@ -560,6 +561,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Steps 5-7: Per-chunk CRF+VMAF feedback loop
+        await set_job_total_chunks(db_path, job_id, len(chunks))
         _emit("stage", {"name": "chunk_encode", "total_chunks": len(chunks)})
         chunk_step_id = await create_step(db_path, job_id, "ChunkEncode")
         total = len(chunks)
