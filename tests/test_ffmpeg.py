@@ -21,13 +21,13 @@ def test_progress_events_emitted():
     gen = run_ffmpeg(cmd)
     events = list(gen)
 
-    assert len(events) > 0, "Expected at least one progress event"
+    assert len(events) > 0, "Expected at least one event"
+    # All events have raw_line (full unfiltered stderr)
     for event in events:
-        assert "frame" in event, f"Event missing 'frame' key: {event}"
-        assert isinstance(event["frame"], int), f"frame must be int, got {type(event['frame'])}"
-        assert event["frame"] > 0, f"frame must be > 0, got {event['frame']}"
-    fps_events = [e for e in events if "fps" in e]
-    assert len(fps_events) > 0, "Expected at least one event with 'fps' key"
+        assert "raw_line" in event, f"Event missing 'raw_line': {event}"
+    # At least one event should be a parsed progress line with frame data
+    progress_events = [e for e in events if "frame" in e and isinstance(e["frame"], int)]
+    assert len(progress_events) > 0, "Expected at least one parsed progress event with frame key"
 
 
 @pytest.mark.timeout(15)

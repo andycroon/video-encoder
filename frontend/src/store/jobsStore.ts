@@ -71,6 +71,7 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
       const isProgress = (l: string) =>
         l.includes('frame=') || l.includes('fps=') ||
         (l.includes('time=') && l.includes('bitrate=')) ||
+        (l.includes('size=') && l.includes('speed=')) ||
         (l.includes('%') && l.includes('|'));
       if (isProgress(d.line) && lines.length > 0 && isProgress(lines[lines.length - 1])) {
         lines[lines.length - 1] = d.line;
