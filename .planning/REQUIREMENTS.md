@@ -46,7 +46,7 @@
 
 ### Documentation
 
-- [ ] **DOC-01**: README.md is built incrementally across all phases — each phase contributes its relevant section (installation prerequisites in Phase 1, pipeline config params in Phase 3, API/watch folder in Phase 4, full usage guide in Phase 5) so documentation stays current with the code
+- [x] **DOC-01**: README.md is built incrementally across all phases — each phase contributes its relevant section (installation prerequisites in Phase 1, pipeline config params in Phase 3, API/watch folder in Phase 4, full usage guide in Phase 5) so documentation stays current with the code
 
 ## v2 Requirements
 
@@ -109,7 +109,7 @@
 | CONF-04 | Phase 3: Pipeline Runner | Complete |
 | CONF-05 | Phase 4: Web API + Scheduler | Complete |
 | CONF-06 | Phase 4: Web API + Scheduler | Complete |
-| DOC-01 | Phase 5: React UI | Pending |
+| DOC-01 | Phase 5: React UI | Complete |
 
 **Coverage:**
 - v1 requirements: 28 total
