@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import * as Select from '@radix-ui/react-select';
 import { listProfiles } from '../api/profiles';
 import { submitJob } from '../api/jobs';
-import type { Profile } from '../types';
+
 import { useJobsStore } from '../store/jobsStore';
 import FilePicker from './FilePicker';
 
@@ -23,19 +23,33 @@ const label: React.CSSProperties = {
 
 export default function TopBar({ onEditProfiles, onOpenSettings }: Props) {
   const [path, setPath] = useState('');
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const upsertJob = useJobsStore(s => s.upsertJob);
+  const storeProfiles = useJobsStore(s => s.profiles);
+  const setStoreProfiles = useJobsStore(s => s.setProfiles);
 
+  // Load profiles into store on mount
   useEffect(() => {
     listProfiles().then(p => {
-      setProfiles(p);
+      setStoreProfiles(p);
       const def = p.find(x => x.is_default) ?? p[0];
       if (def) setSelectedId(String(def.id));
     }).catch(() => {});
   }, []);
+
+  // Keep selectedId valid when store profiles change (e.g. after ProfileModal saves)
+  useEffect(() => {
+    if (storeProfiles.length === 0) return;
+    const stillExists = storeProfiles.find(p => String(p.id) === selectedId);
+    if (!stillExists) {
+      const def = storeProfiles.find(p => p.is_default) ?? storeProfiles[0];
+      if (def) setSelectedId(String(def.id));
+    }
+  }, [storeProfiles]);
+
+  const profiles = storeProfiles;
 
   const selectedProfile = profiles.find(p => String(p.id) === selectedId);
 
