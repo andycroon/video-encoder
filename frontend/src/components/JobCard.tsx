@@ -41,7 +41,7 @@ export default function JobCard({ job }: Props) {
         {/* Pipeline stages */}
         <div style={{ padding: '20px 24px', borderRight: '1px solid var(--border-lo)' }}>
           <p style={sectionHead}>Pipeline</p>
-          <StageList stages={job.stages} currentStage={job.currentStage} totalChunks={job.totalChunks} />
+          <StageList stages={job.stages} currentStage={job.currentStage} totalChunks={job.totalChunks} completedChunks={doneChunks.length} />
         </div>
 
         {/* Chunk data */}

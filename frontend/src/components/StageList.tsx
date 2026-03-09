@@ -11,9 +11,10 @@ interface Props {
   stages: StageData[];
   currentStage: string | null;
   totalChunks?: number | null;
+  completedChunks?: number;
 }
 
-export default function StageList({ stages, currentStage, totalChunks }: Props) {
+export default function StageList({ stages, currentStage, totalChunks, completedChunks = 0 }: Props) {
   const completedNames = new Set(stages.filter(s => s.completedAt).map(s => s.name));
 
   return (
@@ -83,7 +84,7 @@ export default function StageList({ stages, currentStage, totalChunks }: Props) 
               {STAGE_LABELS[name] ?? name}
               {name === 'chunk_encode' && totalChunks && !isDone && (
                 <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)', marginLeft: 8 }}>
-                  {stages.filter(s => s.name === 'chunk_encode').length}/{totalChunks}
+                  {completedChunks}/{totalChunks}
                 </span>
               )}
             </span>
