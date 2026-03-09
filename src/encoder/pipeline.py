@@ -561,6 +561,7 @@ async def run_pipeline(
 
         # Steps 5-7: Per-chunk CRF+VMAF feedback loop
         _emit("stage", {"name": "chunk_encode", "total_chunks": len(chunks)})
+        chunk_step_id = await create_step(db_path, job_id, "ChunkEncode")
         total = len(chunks)
         encoded_chunks = []
         for i, chunk_in in enumerate(chunks, 1):
@@ -597,6 +598,7 @@ async def run_pipeline(
             })
             encoded_chunks.append(chunk_out)
 
+        await update_step(db_path, chunk_step_id, "DONE")
         _check_cancel(cancel_event)
 
         # Step 8: Concat
@@ -633,7 +635,10 @@ async def run_pipeline(
             raise
     finally:
         # Step 10: Cleanup — always, regardless of outcome
+        _emit("stage", {"name": "cleanup"})
+        cleanup_step_id = await create_step(db_path, job_id, "Cleanup")
         _cleanup(temp_dir)
+        await update_step(db_path, cleanup_step_id, "DONE")
 
 
 # ---------------------------------------------------------------------------

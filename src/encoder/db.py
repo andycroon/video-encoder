@@ -254,8 +254,10 @@ _STEP_TO_STAGE = {
     "SceneDetect":    "scene_detect",
     "ChunkSplit":     "chunk_split",
     "AudioTranscode": "audio_transcode",
+    "ChunkEncode":    "chunk_encode",
     "Concat":         "merge",
     "Mux":            "mux",
+    "Cleanup":        "cleanup",
 }
 
 
