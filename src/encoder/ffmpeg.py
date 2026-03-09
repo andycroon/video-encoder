@@ -86,6 +86,11 @@ def _parse_progress(line: str) -> dict:
     }
 
 
+def _is_progress(line: str) -> bool:
+    """Return True for ffmpeg progress lines — both video (frame=) and audio-only (time= bitrate=)."""
+    return "frame=" in line or ("time=" in line and "bitrate=" in line)
+
+
 def _make_drain_thread(
     proc: subprocess.Popen,
     stderr_lines: list,
@@ -113,12 +118,15 @@ def _make_drain_thread(
                 if not line:
                     continue
                 stderr_lines.append(line)
-                if "frame=" in line:
+                if _is_progress(line):
                     line_queue.put(line)
-        # Flush the remaining buffer (may be a \\n-terminated final line)
+        # Flush the remaining buffer (may be a \n-terminated final line)
+        # This captures fast copy operations that finish before \r output
         if buf.strip():
             line = buf.decode("utf-8", errors="replace").strip()
             stderr_lines.append(line)
+            if _is_progress(line):
+                line_queue.put(line)
         # Sentinel signals the generator that stderr is exhausted
         line_queue.put(_SENTINEL)
 

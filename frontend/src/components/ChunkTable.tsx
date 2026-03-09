@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import type { ChunkData } from '../types';
 
 interface Props { chunks: ChunkData[] }
@@ -23,6 +24,12 @@ const th: React.CSSProperties = {
 };
 
 export default function ChunkTable({ chunks }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [chunks.length]);
   if (chunks.length === 0) {
     return (
       <div style={{
@@ -39,7 +46,7 @@ export default function ChunkTable({ chunks }: Props) {
   }
 
   return (
-    <div style={{
+    <div ref={scrollRef} style={{
       maxHeight: 220,
       overflowY: 'auto',
       border: '1px solid var(--border)',

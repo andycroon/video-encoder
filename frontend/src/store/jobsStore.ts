@@ -69,7 +69,9 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
       const d = data as { line: string };
       const lines = job.log ? job.log.split('\n') : [];
       const isProgress = (l: string) =>
-        l.includes('fps=') || l.includes('frame=') || (l.includes('%') && l.includes('|'));
+        l.includes('frame=') || l.includes('fps=') ||
+        (l.includes('time=') && l.includes('bitrate=')) ||
+        (l.includes('%') && l.includes('|'));
       if (isProgress(d.line) && lines.length > 0 && isProgress(lines[lines.length - 1])) {
         lines[lines.length - 1] = d.line;
       } else {
@@ -102,10 +104,9 @@ export const useJobsStore = create<JobsState>((set) => ({
         chunks: existing.chunks.length > incoming.chunks.length ? existing.chunks : incoming.chunks,
         totalChunks: existing.totalChunks ?? incoming.totalChunks,
         eta: existing.eta,
-        // Preserve SSE log unless stage changed (stage change clears log via SSE already)
-        log: incoming.currentStage !== existing.currentStage
-          ? existing.log  // stage just changed, keep SSE log (already cleared by stage event)
-          : existing.log.length > incoming.log.length ? existing.log : incoming.log,
+        // Running jobs: always use SSE-accumulated log — REST only has chunk completion summaries
+        // Finished jobs: use DB log
+        log: incoming.status === 'RUNNING' ? existing.log : incoming.log,
       };
     }),
   })),

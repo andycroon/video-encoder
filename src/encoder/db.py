@@ -309,6 +309,8 @@ async def list_jobs(path: str, status: str | None = None) -> list[dict]:
         if result:
             job_ids = [d["id"] for d in result]
             placeholders = ",".join("?" * len(job_ids))
+
+            # Attach stages from steps table
             async with db.execute(
                 f"SELECT * FROM steps WHERE job_id IN ({placeholders}) ORDER BY id",
                 job_ids,
@@ -317,8 +319,33 @@ async def list_jobs(path: str, status: str | None = None) -> list[dict]:
             steps_by_job: dict[int, list] = {}
             for s in all_steps:
                 steps_by_job.setdefault(s["job_id"], []).append(s)
+
+            # Attach completed chunks from chunks table
+            async with db.execute(
+                f"SELECT * FROM chunks WHERE job_id IN ({placeholders}) AND status='DONE' ORDER BY chunk_index",
+                job_ids,
+            ) as cursor:
+                all_chunks = [dict(r) for r in await cursor.fetchall()]
+            chunks_by_job: dict[int, list] = {}
+            for c in all_chunks:
+                chunks_by_job.setdefault(c["job_id"], []).append(c)
+
             for d in result:
                 _attach_stages(d, steps_by_job.get(d["id"], []))
+                raw_chunks = chunks_by_job.get(d["id"], [])
+                d["chunks"] = [
+                    {
+                        "chunkIndex": c["chunk_index"],
+                        "crf": c["crf_used"],
+                        "vmaf": c["vmaf_score"],
+                        "passes": c["iterations"],
+                        "startedAt": None,
+                        "completedAt": c["finished_at"],
+                        "durationMs": None,
+                    }
+                    for c in raw_chunks
+                ]
+                d["totalChunks"] = len(raw_chunks) if raw_chunks else None
 
         return result
 
