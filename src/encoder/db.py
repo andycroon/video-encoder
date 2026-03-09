@@ -339,6 +339,17 @@ async def list_jobs(path: str, status: str | None = None) -> list[dict]:
                 _attach_stages(d, steps_by_job.get(d["id"], []))
                 all_job_chunks = chunks_by_job.get(d["id"], [])
                 done_chunks = [c for c in all_job_chunks if c["status"] == "DONE"]
+                def _duration_ms(c: dict) -> float | None:
+                    if c.get("started_at") and c.get("finished_at"):
+                        try:
+                            import datetime as _dt
+                            s = _dt.datetime.fromisoformat(c["started_at"])
+                            f = _dt.datetime.fromisoformat(c["finished_at"])
+                            return (f - s).total_seconds() * 1000
+                        except Exception:
+                            return None
+                    return None
+
                 d["chunks"] = [
                     {
                         "chunkIndex": c["chunk_index"],
@@ -347,7 +358,7 @@ async def list_jobs(path: str, status: str | None = None) -> list[dict]:
                         "passes": c["iterations"],
                         "startedAt": None,
                         "completedAt": c["finished_at"],
-                        "durationMs": None,
+                        "durationMs": _duration_ms(c),
                     }
                     for c in done_chunks
                 ]
@@ -414,8 +425,8 @@ async def create_chunk(path: str, job_id: int, chunk_index: int) -> int:
     """
     async with get_db(path) as db:
         cursor = await db.execute(
-            "INSERT INTO chunks (job_id, chunk_index) VALUES (?, ?)",
-            (job_id, chunk_index),
+            "INSERT INTO chunks (job_id, chunk_index, started_at) VALUES (?, ?, ?)",
+            (job_id, chunk_index, _utcnow()),
         )
         await db.commit()
         return cursor.lastrowid
