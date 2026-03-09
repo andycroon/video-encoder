@@ -2,9 +2,37 @@
 
 VibeCoder Video Encoder — batch x264 encoding with VMAF-targeted quality, designed for a single-user local workflow.
 
+## Quick Start
+
+1. **Prerequisites:** Python 3.12+, ffmpeg at `C:\ffmpeg\ffmpeg.exe`, PySceneDetect on PATH, Plex Transcoder (for EAC3)
+2. **Install:**
+   ```bash
+   pip install -e .
+   cd frontend && npm install && npm run build && cd ..
+   ```
+3. **Run:**
+   ```bash
+   uvicorn encoder.main:app
+   ```
+4. **Open:** http://localhost:8000 in a browser
+5. **Add a job:** Type a `.mkv` file path in the top bar and click Add
+
+### Troubleshooting
+
+| Problem | Likely cause | Fix |
+|---------|-------------|-----|
+| `GET /jobs` returns HTML instead of JSON | StaticFiles mounted before API routes | Ensure `app.mount(...)` is the last line in `main.py` |
+| SSE stream shows data in DevTools but UI doesn't update | Using `onmessage` instead of `addEventListener` | SSE events are named — requires `es.addEventListener('stage', ...)` pattern |
+| VMAF score is 0 or missing | VMAF model not found | Ensure `assets/vmaf_v0.6.1.json` exists; model loaded via `model='version=vmaf_v0.6.1'` |
+| Watch folder not picking up files | File still being written | Watcher uses 5-second stability check; large files take longer |
+| `EncoderError: ffmpeg exited with code 1` | Wrong ffmpeg path or missing codec | Verify ffmpeg is at `C:\ffmpeg\ffmpeg.exe` and supports libx264 and eac3 |
+| Frontend shows "Loading..." | `frontend/dist/` not built | Run `cd frontend && npm run build` |
+
+---
+
 ## What This Is
 
-This project converts a PowerShell encoding script into a cross-platform Python library, CLI, and (eventually) web application. The current state is a Python library and CLI (Phases 1–3) that will gain a browser-based UI in Phase 5. See [the roadmap](.planning/ROADMAP.md) for the full build plan and phase breakdown.
+This project converts a PowerShell encoding script into a cross-platform Python library, CLI, and web application. See [the roadmap](.planning/ROADMAP.md) for the full build plan and phase breakdown.
 
 ---
 
@@ -465,3 +493,69 @@ After enabling, drop any `.mkv` file into the watch folder and the server will p
 
 Before starting each job, the server checks that available disk space on the output drive is at least 3× the source file size. If space is insufficient, a `warning` SSE event is emitted on the job's `/stream` endpoint and a warning is logged to the server console. The job proceeds regardless — it is a warning only, not a block.
 
+---
+
+## Phase 5: React UI
+
+The web interface is a React 19 + TypeScript single-page app served by the FastAPI backend.
+
+### Building the frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+After building, `frontend/dist/` is served automatically by the FastAPI backend at `http://localhost:8000/`.
+
+### Development mode
+
+To run the frontend with hot reload (proxies API calls to the backend):
+
+```bash
+# Terminal 1 — start the backend
+uvicorn encoder.main:app --reload
+
+# Terminal 2 — start the Vite dev server
+cd frontend
+npm run dev
+```
+
+Open http://localhost:5173 in a browser.
+
+### UI features
+
+**Adding a job:**
+1. Type or paste the full path to a source `.mkv` file in the top input bar
+2. Select an encoder profile from the dropdown (Default uses the original script parameters)
+3. Click **Add** — the job appears in the queue with QUEUED status
+
+**Monitoring progress:**
+- Click any job row to expand it and see the pipeline stage list and chunk encode data
+- The **Pipeline** column shows all stages with checkmarks, active indicator, and timing
+- The **Chunks** column populates live as each chunk finishes: chunk number, CRF used, VMAF score, pass count
+- The **ETA** shown in the collapsed row (during chunk encode) is computed from average chunk duration
+
+**Queue controls:**
+- RUNNING jobs: **Pause** (waits for current step to finish) and **Cancel** (graceful termination + cleanup)
+- PAUSED/QUEUED jobs: **Cancel**
+- FAILED/CANCELLED/DONE jobs: **Retry** (creates a new job from the same source path and profile)
+
+**Encoder profiles:**
+- Click **Edit** next to the profile picker to open the profile editor
+- Create named profiles with custom VMAF range, CRF bounds, audio codec, and x264 parameters
+- The Default profile is seeded from the original PowerShell script parameters and cannot be deleted
+- x264 parameters are edited as individual key-value pairs
+
+**ffmpeg log:**
+- In an expanded job card, click **Show ffmpeg log** to read the full captured stderr output
+- The log auto-scrolls to the bottom as new lines arrive; scroll up to pause auto-scroll
+
+### Running frontend tests
+
+```bash
+cd frontend
+npm test -- --run
+```
