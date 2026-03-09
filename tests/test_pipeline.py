@@ -206,7 +206,7 @@ def test_x264_encode(ffmpeg_bin, tmp):
     _make_video(ffmpeg_bin, chunk, duration=1.0)
     out = tmp / "encoded.mp4"
     config = dict(DEFAULT_CONFIG)
-    _encode_chunk_x264(chunk, out, crf=18, config=config, is_first=True)
+    _encode_chunk_x264(chunk, out, crf=18, config=config)
     assert out.exists(), "Encoded chunk file was not created"
     assert out.stat().st_size > 0, "Encoded chunk file is empty"
 
@@ -220,7 +220,7 @@ def test_vmaf_score(ffmpeg_bin, tmp):
     _make_video(ffmpeg_bin, ref, duration=1.0)
     encoded = tmp / "encoded.mp4"
     config = dict(DEFAULT_CONFIG)
-    _encode_chunk_x264(ref, encoded, crf=17, config=config, is_first=True)
+    _encode_chunk_x264(ref, encoded, crf=17, config=config)
     score = _vmaf_score(encoded, ref)
     assert isinstance(score, float), f"Expected float, got {type(score)}"
     assert 0.0 <= score <= 100.0, f"VMAF score {score} out of range [0, 100]"

@@ -243,13 +243,12 @@ def _encode_chunk_x264(
     crf: int,
     config: dict,
     *,
-    is_first: bool = True,
     cancel_event=None,
     on_progress=None,
 ) -> None:
     """Encode a single FFV1 chunk to x264 at the given CRF."""
     p = config.get("x264_params", {})
-    bufsize = "14000k" if is_first else p.get("bufsize", "24000k")
+    bufsize = p.get("bufsize", "24000k")
     cmd = [
         FFMPEG, "-y", "-i", str(chunk_path),
         "-c:v", "libx264", "-crf", str(crf),
