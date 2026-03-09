@@ -23,6 +23,7 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
       );
       return {
         ...job,
+        log: '',  // clear log when a new stage starts
         currentStage: d.name,
         totalChunks: d.total_chunks ?? job.totalChunks,
         stages: [...updatedStages, { name: d.name, startedAt: d.started_at ?? now, completedAt: null }],
@@ -67,10 +68,9 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
     case 'log': {
       const d = data as { line: string };
       const lines = job.log ? job.log.split('\n') : [];
-      // Replace last line if it looks like a progress update (contains fps=), otherwise append
-      const isProgress = d.line.includes('fps=') || d.line.includes('frame=');
-      const lastIsProgress = lines.length > 0 && (lines[lines.length - 1].includes('fps=') || lines[lines.length - 1].includes('frame='));
-      if (isProgress && lastIsProgress) {
+      const isProgress = (l: string) =>
+        l.includes('fps=') || l.includes('frame=') || (l.includes('%') && l.includes('|'));
+      if (isProgress(d.line) && lines.length > 0 && isProgress(lines[lines.length - 1])) {
         lines[lines.length - 1] = d.line;
       } else {
         lines.push(d.line);
@@ -102,8 +102,10 @@ export const useJobsStore = create<JobsState>((set) => ({
         chunks: existing.chunks.length > incoming.chunks.length ? existing.chunks : incoming.chunks,
         totalChunks: existing.totalChunks ?? incoming.totalChunks,
         eta: existing.eta,
-        // Preserve SSE log — REST only has chunk-completion lines
-        log: existing.log.length > incoming.log.length ? existing.log : incoming.log,
+        // Preserve SSE log unless stage changed (stage change clears log via SSE already)
+        log: incoming.currentStage !== existing.currentStage
+          ? existing.log  // stage just changed, keep SSE log (already cleared by stage event)
+          : existing.log.length > incoming.log.length ? existing.log : incoming.log,
       };
     }),
   })),
