@@ -29,6 +29,7 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "output_path": "",
     "temp_path": "",
     "watch_folder_path": "",
+    "max_parallel_chunks": "1",
 }
 
 # Default encoding profile matching the original PowerShell script parameters
@@ -63,7 +64,7 @@ DEFAULT_PROFILE_CONFIG: dict = {
 
 # Type coercion map: keys whose values should not stay as strings
 _SETTINGS_FLOAT_KEYS = {"vmaf_min", "vmaf_max"}
-_SETTINGS_INT_KEYS = {"crf_min", "crf_max", "crf_start"}
+_SETTINGS_INT_KEYS = {"crf_min", "crf_max", "crf_start", "max_parallel_chunks"}
 
 
 def _utcnow() -> str:
@@ -76,6 +77,7 @@ async def get_db(path: str) -> AsyncIterator:
     async with aiosqlite.connect(path) as db:
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA synchronous=NORMAL")
+        await db.execute("PRAGMA busy_timeout = 5000")
         db.row_factory = sqlite3.Row
         yield db
 
@@ -199,10 +201,12 @@ async def put_settings(path: str, updates: dict) -> None:
 
 async def recover_stale_jobs(path: str) -> int:
     """
-    Reset RUNNING jobs with stale heartbeats back to QUEUED.
+    Reset RUNNING jobs with stale heartbeats to RESUMING.
 
     Returns the number of jobs recovered.
     Detection: status='RUNNING' and heartbeat_at older than HEARTBEAT_STALE_SECONDS.
+    Jobs are set to RESUMING (not QUEUED) so the UI shows recovery state and the
+    pipeline can skip already-completed steps on next run.
     """
     threshold = (
         datetime.datetime.now(datetime.timezone.utc)
@@ -210,7 +214,7 @@ async def recover_stale_jobs(path: str) -> int:
     ).isoformat()
     async with get_db(path) as db:
         cursor = await db.execute(
-            "UPDATE jobs SET status='QUEUED', started_at=NULL, heartbeat_at=NULL "
+            "UPDATE jobs SET status='RESUMING', started_at=NULL, heartbeat_at=NULL "
             "WHERE status='RUNNING' AND (heartbeat_at IS NULL OR heartbeat_at < ?)",
             (threshold,),
         )

@@ -87,7 +87,7 @@ class Scheduler:
         if job is None:
             logger.warning("Job %d not found in DB; skipping", job_id)
             return
-        if job["status"] not in ("QUEUED",):
+        if job["status"] not in ("QUEUED", "RESUMING"):
             logger.info("Job %d has status %s; skipping", job_id, job["status"])
             return
 

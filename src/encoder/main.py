@@ -44,6 +44,10 @@ async def lifespan(app: FastAPI):
     queued = await list_jobs(DB_PATH, status="QUEUED")
     for job in queued:
         await scheduler.enqueue(job["id"])
+    # Re-enqueue RESUMING jobs (were RUNNING when app crashed — pipeline will skip done steps)
+    resuming = await list_jobs(DB_PATH, status="RESUMING")
+    for job in resuming:
+        await scheduler.enqueue(job["id"])
 
     watcher = WatchFolder(scheduler=scheduler, db_path=DB_PATH)
     app.state.watcher = watcher

@@ -76,7 +76,7 @@ def test_wal_mode_active(tmp_path):
 
 
 def test_stale_job_recovery(tmp_path):
-    """RUNNING jobs with stale heartbeats are reset to QUEUED by recover_stale_jobs."""
+    """RUNNING jobs with stale heartbeats are reset to RESUMING by recover_stale_jobs."""
     db_path = str(tmp_path / "test.db")
 
     async def _run():
@@ -99,7 +99,7 @@ def test_stale_job_recovery(tmp_path):
         assert count == 1, f"Expected 1 recovered job, got {count}"
 
         result = await get_job(db_path, job_id)
-        assert result["status"] == "QUEUED"
+        assert result["status"] == "RESUMING"
         assert result["heartbeat_at"] is None
 
     asyncio.run(_run())
@@ -169,6 +169,38 @@ def test_log_append(tmp_path):
         assert result["log"].index("Chunk 1") < result["log"].index("Chunk 2"), (
             "Chunk 1 must appear before Chunk 2 in the log"
         )
+
+    asyncio.run(_run())
+
+
+def test_recover_stale_sets_resuming(tmp_path):
+    """recover_stale_jobs sets stale RUNNING jobs to RESUMING (not QUEUED)."""
+    db_path = str(tmp_path / "test.db")
+
+    async def _run():
+        await init_db(db_path)
+        job_id = await create_job(db_path, "/source/video.mkv", default_config())
+
+        # Set job to RUNNING with a heartbeat 120 seconds ago (past HEARTBEAT_STALE_SECONDS=60)
+        stale_time = (
+            datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(seconds=120)
+        ).isoformat()
+        async with aiosqlite.connect(db_path) as conn:
+            await conn.execute(
+                "UPDATE jobs SET status='RUNNING', heartbeat_at=? WHERE id=?",
+                (stale_time, job_id),
+            )
+            await conn.commit()
+
+        count = await recover_stale_jobs(db_path)
+        assert count == 1, f"Expected 1 recovered job, got {count}"
+
+        result = await get_job(db_path, job_id)
+        assert result["status"] == "RESUMING", (
+            f"Expected RESUMING status after recovery, got {result['status']!r}"
+        )
+        assert result["heartbeat_at"] is None, "heartbeat_at should be cleared after recovery"
 
     asyncio.run(_run())
 
