@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Quality & Manageability
 status: planning
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-17T13:10:33.607Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-17T17:05:33.999Z"
 last_activity: 2026-03-17 — v1.1 roadmap written; Phases 6-8 defined
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
   percent: 0
 ---
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06-pipeline-reliability P01 | 3min | 2 tasks | 2 files |
 | Phase 06-pipeline-reliability P02 | 5 min | 2 tasks | 9 files |
 | Phase 06-pipeline-reliability P03 | 7 min | 3 tasks | 5 files |
+| Phase 07-job-management P01 | 3 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - [Phase 06]: SceneDetect re-runs on resume (fast) to provide timestamps for ChunkSplit without storing them in DB
 - [Phase 06]: recover_stale_jobs sets RESUMING (not QUEUED) so pipeline reads existing steps and skips done work
 - [Phase 06-pipeline-reliability]: Serial path uses await directly in async coroutine; parallel path pre-creates chunk rows then uses run_coroutine_threadsafe to avoid deadlock
+- [Phase 07-job-management]: Manual child-row deletion in delete_job (schema lacks ON DELETE CASCADE; SQLite cannot ALTER CONSTRAINT)
+- [Phase 07-job-management]: DELETE /api/jobs/bulk registered before {job_id} route to prevent FastAPI parsing 'bulk' as integer (422)
+- [Phase 07-job-management]: delete_or_cancel_job always purges from DB; active jobs cancelled then deleted (not just status-updated)
 
 ### Pending Todos
 
@@ -81,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T13:10:33.604Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-job-management/07-CONTEXT.md
+Last session: 2026-03-17T17:05:33.996Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None

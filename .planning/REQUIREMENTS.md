@@ -58,10 +58,10 @@
 
 ### Job Management
 
-- [ ] **JMGMT-01**: User can delete individual completed or failed jobs
-- [ ] **JMGMT-02**: User can bulk-clear all completed jobs or all failed jobs in one action
+- [x] **JMGMT-01**: User can delete individual completed or failed jobs
+- [x] **JMGMT-02**: User can bulk-clear all completed jobs or all failed jobs in one action
 - [ ] **JMGMT-03**: Completed jobs appear in a separate history view; active queue shows only queued and running jobs
-- [ ] **JMGMT-04**: System auto-removes completed jobs after a configurable time period (default: 7 days)
+- [x] **JMGMT-04**: System auto-removes completed jobs after a configurable time period (default: 7 days)
 
 ### UI
 
@@ -132,10 +132,10 @@
 | PIPE-V2-01 | Phase 6: Pipeline Reliability | Complete |
 | PIPE-V2-02 | Phase 6: Pipeline Reliability | Complete |
 | PIPE-V2-03 | Phase 6: Pipeline Reliability | Complete |
-| JMGMT-01 | Phase 7: Job Management | Pending |
-| JMGMT-02 | Phase 7: Job Management | Pending |
+| JMGMT-01 | Phase 7: Job Management | Complete |
+| JMGMT-02 | Phase 7: Job Management | Complete |
 | JMGMT-03 | Phase 7: Job Management | Pending |
-| JMGMT-04 | Phase 7: Job Management | Pending |
+| JMGMT-04 | Phase 7: Job Management | Complete |
 | UI-V2-01 | Phase 8: UI Enhancements | Pending |
 | UI-V2-02 | Phase 8: UI Enhancements | Pending |
 | UI-V2-03 | Phase 8: UI Enhancements | Pending |

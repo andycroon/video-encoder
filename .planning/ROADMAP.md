@@ -167,5 +167,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 4. Web API + Scheduler | v1.0 | 4/4 | Complete | 2026-03-08 |
 | 5. React UI | v1.0 | 6/6 | Complete | 2026-03-09 |
 | 6. Pipeline Reliability | v1.1 | 3/3 | Complete | 2026-03-17 |
-| 7. Job Management | v1.1 | 0/2 | Not started | - |
+| 7. Job Management | 1/2 | In Progress|  | - |
 | 8. UI Enhancements | v1.1 | 0/2 | Not started | - |
