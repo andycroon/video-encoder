@@ -128,6 +128,25 @@ export default function SettingsModal({ open, onClose }: Props) {
                       )}
                     </div>
                   </div>
+
+                  <div>
+                    <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-3 font-medium">Retention</h3>
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1">Auto-remove completed jobs after</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="w-24 bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-blue-500/60 transition-colors"
+                          value={settings ? Math.round((settings.auto_cleanup_hours ?? 168) / 24) : 7}
+                          onChange={e => update('auto_cleanup_hours', (parseInt(e.target.value) || 0) * 24)}
+                        />
+                        <span className="text-sm text-neutral-400">days</span>
+                      </div>
+                      <p className="text-xs text-neutral-500 mt-1">Set to 0 to disable. Default: 7 days.</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
