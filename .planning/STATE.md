@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Quality & Manageability
 status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-17T10:56:36.346Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-17T12:43:08.165Z"
 last_activity: 2026-03-17 — v1.1 roadmap written; Phases 6-8 defined
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
   percent: 0
 ---
 
@@ -48,6 +48,7 @@ Progress: [░░░░░░░░░░] 0%
 | 08-ui-enhancements | 0/2 | - | - |
 
 *Updated after each plan completion*
+| Phase 06-pipeline-reliability P01 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,8 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: PRAGMA busy_timeout = 5000 is a Phase 6 prerequisite (parallel chunk writers need it); PRAGMA foreign_keys = ON is a Phase 7 prerequisite (cascade delete needs it)
 - [v1.1 Roadmap]: History view is a filtered view over the existing jobs Zustand array — no second poll loop; active queue polls running statuses, history is one-time fetch + manual refresh
 - [v1.1 Roadmap]: Browser file upload deferred to v2 (chunked upload protocol lift not validated for remote-access need); server-side directory browser already shipped in v1.0
+- [Phase 06-pipeline-reliability]: Oscillation detected after encoding (not before) so repeated CRF entry is recorded in history before breaking, enabling correct best-selection
+- [Phase 06-pipeline-reliability]: Lower CRF wins tiebreaks in vmaf_history selection because higher bitrate is safer for perceptual quality targets
 
 ### Pending Todos
 
@@ -73,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T10:56:36.343Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-pipeline-reliability/06-CONTEXT.md
+Last session: 2026-03-17T12:43:08.163Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None
