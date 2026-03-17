@@ -1,19 +1,17 @@
 # Project Research Summary
 
 **Project:** VibeCoder Video Encoder
-**Domain:** Cross-platform Python video encoding queue web application
-**Researched:** 2026-03-07
-**Confidence:** HIGH (all four research areas verified against official docs and multiple sources)
-
----
+**Domain:** Python video encoding web application — v1.1 Quality & Manageability milestone
+**Researched:** 2026-03-17
+**Confidence:** HIGH
 
 ## Executive Summary
 
-The VibeCoder Video Encoder is a single-user, locally deployed web application that wraps a scene-aware x264 encoding pipeline behind a browser queue manager. The canonical architecture for this class of problem is Web-Queue-Worker: a FastAPI web server handles the API and SSE progress streaming, SQLite with WAL mode stores all job state durably, and an in-process asyncio background task manages the encoding queue. No external broker (Redis, Celery, RabbitMQ) is needed — the entire application starts from a single `python -m videoencoder` command, which is the right target for a local desktop-class tool.
+This is a v1.1 milestone update to an existing, working application. The v1.0 stack (FastAPI + asyncio + SQLite WAL + React 19 + Zustand 5 + Tailwind 4) is validated in production. The research scope is narrowly focused: add parallel chunk encoding, job resume after crash, smart CRF oscillation resolution, job deletion and history management, and a set of quality-of-life UI improvements (VMAF chart, dark mode toggle, auto-cleanup). No new infrastructure is required — all backend additions use Python stdlib, and the only new frontend dependency is `recharts@^3.8.0` for the VMAF line chart.
 
-The recommended approach is to build bottom-up: validate the ffmpeg subprocess layer first (cross-platform process spawning, progress parsing, graceful cancellation), then the database state layer, then the 10-step pipeline runner with the VMAF CRF feedback loop, and finally add the web API and browser UI on top. This order is non-negotiable — cross-platform subprocess and VMAF concerns must be solved at the foundation level. Attempting to build the UI or job queue before the subprocess layer is proven correct on Windows leads to foundational rewrites.
+The recommended approach is strictly evolutionary. The eight new capabilities map cleanly onto the existing architecture with surgical modifications to `pipeline.py`, `db.py`, `main.py`, and several frontend components. The most critical implementation risk is parallel chunk encoding: the concurrency boundary must sit inside `pipeline.py` (a job-scoped inner `ThreadPoolExecutor`), not at the scheduler level. Cross-thread DB writes from parallel chunk workers must route through `asyncio.run_coroutine_threadsafe` to avoid creating competing event loops. SQLite must have `PRAGMA busy_timeout = 5000` added to survive concurrent write bursts from parallel workers.
 
-The dominant risk cluster is Windows-specific subprocess behavior: asyncio event loop selection, graceful ffmpeg cancellation across process groups, and VMAF model path escaping in ffmpeg filter strings. All three are well-understood problems with documented solutions, but they must be addressed at Phase 1, not retrofitted. The secondary risk is VMAF correctness — the CRF feedback loop depends on libvmaf returning valid scores, which requires explicit resolution/format normalization in the filter graph and a convergence guard in the loop logic. Both are low-risk if addressed proactively.
+The clear recommended build order is: CRF oscillation fix first (zero risk, no dependencies), then job resume (restructures the pipeline step loop), then parallel chunk encoding (builds on the restructured loop), then deletion and history management (independent backend work), then UI enhancements. Browser file upload is deferred to v1.2 — the chunked upload protocol is a meaningful engineering lift and primarily serves remote-access workflows not yet validated as a core user need.
 
 ---
 
@@ -21,232 +19,160 @@ The dominant risk cluster is Windows-specific subprocess behavior: asyncio event
 
 ### Recommended Stack
 
-The backend is FastAPI + Uvicorn (async-native, built-in SSE via StreamingResponse, serves the React build as static files). Job state uses SQLite via SQLAlchemy 2.0 async + aiosqlite — zero external services, WAL mode for concurrent reads. The queue is `asyncio.Queue` + `asyncio.create_subprocess_exec` in-process — no Celery, no Redis, no separate worker. Celery's prefork pool is broken on Windows and would require Redis as an external dependency; both are unjustified for a local tool.
-
-Real-time progress is delivered via Server-Sent Events (SSE), not WebSocket. Control actions (pause, cancel, reorder) go through regular REST endpoints. SSE is unidirectional (server to browser), has automatic browser reconnect, and requires no library beyond FastAPI's built-in `StreamingResponse`. ffmpeg progress is parsed from `-progress pipe:1 -nostats` structured key=value output, not from raw stderr. PySceneDetect runs via its Python API in a thread pool (`asyncio.run_in_executor`) since it is synchronous.
-
-The frontend is React 19 + TypeScript + Vite, served by FastAPI from the `dist/` build output. The app has enough real-time state complexity (per-chunk VMAF charts, live CRF display, job reordering) that HTMX is insufficient. TanStack Query handles server state and SSE subscription; Zustand handles client-side UI state.
+The v1.0 stack requires no new Python packages for any of the v1.1 features. All backend additions use Python stdlib: `asyncio.Semaphore`, `concurrent.futures.ThreadPoolExecutor`, `asyncio.create_task`, `pathlib`, and `aiofiles` (already installed). The only new dependency is one frontend package.
 
 **Core technologies:**
-- FastAPI 0.115.x: HTTP API + SSE + static file serving — async-native, no external async WS library needed
-- asyncio.Queue + asyncio.create_subprocess_exec (stdlib): in-process job queue and ffmpeg subprocess management — no broker, no Windows compatibility issues
-- SQLite + SQLAlchemy 2.0 async + aiosqlite: durable job state, WAL mode for concurrent reads — zero external services
-- SSE via FastAPI StreamingResponse: real-time progress push — simpler than WebSocket for unidirectional use case
-- React 19 + TypeScript + Vite: browser UI — required for complex real-time state (VMAF charts, live CRF adjustment)
-- ffmpeg-progress-yield 0.7.x: structured progress parsing — avoids reimplementing the stderr parser
-- scenedetect 0.6.7.x (pinned): scene boundary detection — must be pinned to minor version; API is unstable
-- watchfiles: cross-platform watch folder monitoring — uses native OS events on both Windows and Linux
-- pathlib.Path everywhere: cross-platform file path handling — never string concatenation
+
+- `concurrent.futures.ThreadPoolExecutor` (stdlib, inner pool): parallel chunk encoding — job-scoped inner pool inside `run_pipeline`, distinct from the scheduler's executor which stays at `max_workers=1`
+- `asyncio.run_coroutine_threadsafe` (stdlib): cross-thread DB write bridge — chunk worker threads post aiosqlite calls back to the pipeline event loop without creating competing loops
+- `asyncio.create_task` + `asyncio.sleep` loop (stdlib): auto-cleanup background task — periodic sweep deletes old terminal jobs; APScheduler adds a dependency for what is a single `while True` pattern
+- `recharts@^3.8.0` (new frontend dep): per-job VMAF line chart — React 19 compatible, declarative component API, ~100 KB gzipped; the only new package in the entire milestone
+- Tailwind CSS v4 `@custom-variant dark` (already installed at ^4.2.1): class-based dark mode via one CSS directive and a `localStorage` toggle — no `next-themes` or SSR-flash mitigation needed for a Vite SPA
+
+**Critical version note:** Use `recharts@^3.8.0` specifically. Version 2.x had alpha-level React 19 support. Version 3 is the full-support release; TypeScript types are included, no `@types/recharts` needed.
+
+**See:** `.planning/research/STACK.md`
+
+---
 
 ### Expected Features
 
-**Must have (table stakes — v1 ships with all of these):**
-- Job list with status (queued, running, done, failed, cancelled)
-- Add job by file path (typed path entry, server-side validation)
-- Global defaults (VMAF range, CRF bounds, audio codec) with per-job override
-- Real-time stage-by-stage progress display (named pipeline stage + stage-level %)
-- Per-chunk VMAF progress (chunk index, current VMAF score, current CRF, live-updated)
-- Cancel individual job (cleans up temp files)
-- Pause / resume queue (waits for current step to complete cleanly before pausing)
-- Retry failed job (re-enqueue with same config)
-- Encoding log per job (ffmpeg stderr captured, stored, displayed on demand)
-- Output file size and compression ratio
-- Configurable directory paths (input, output, temp)
-- Job history / completion list
+All v1.0 table-stakes (job queue, pause/cancel/retry, SSE progress, encoding profiles, global settings, watch folder, server-side directory browser) are already built. v1.1 addresses the gaps that make the tool feel unfinished after sustained use.
 
-**Should have (differentiators — v1 if time allows, otherwise v2):**
-- Watch folder input — drops files in configured directory, auto-queues
-- Browser file upload — enables remote headless server workflows
-- Server-side folder browse — tree/flat listing for picking source files without typing
-- VMAF score history per job — per-chunk results as chart or table after completion
-- Disk space warnings — check available temp space before starting; FFV1 intermediates can be 3-5x source size
-- Estimated time remaining — requires baseline data from prior jobs
-- CRF convergence indicator — surface oscillating CRF early as a problem signal
-- Dark mode
+**Must have — v1.1 core (P1):**
+- Smart CRF oscillation resolution — quality correctness fix; zero UX complexity; ships alone with no risk
+- Job resume from crash — overnight encodes depend on this; DB schema already supports it; `pipeline.py` needs step-gate guards
+- Parallel chunk encoding — headlining throughput feature; default concurrency=2; configurable via SettingsModal
+- Delete individual jobs + bulk-clear completed/failed — basic hygiene missing since v1.0; cascade delete requires `PRAGMA foreign_keys = ON`
+- History view (active vs completed queue) — separates jobs needing attention from finished jobs; pairs with delete
 
-**Defer (v2+, anti-features for v1):**
-- Distributed / multi-node encoding
-- GPU/NVENC/VAAPI hardware encoder support
-- Library scanning / media management
-- Multi-profile output (one source to many renditions)
-- Plugin system
-- User authentication / multi-user
-- Cloud storage integration
+**Should have — v1.1 polish (P2):**
+- VMAF score history chart — visual proof of quality consistency; Recharts `LineChart` over existing `chunks` table data; no backend changes needed
+- CRF convergence indicator in history view — shows which chunks needed re-encodes; minor `ChunkTable` color threshold extension
+- Auto-cleanup with configurable retention — prevents unbounded history growth; `asyncio.sleep` loop, default disabled (0 hours)
+- Dark mode toggle — dark default, light opt-in; persisted in `localStorage`; CSS custom properties already in place
+- Server-side directory browser — **already implemented** as `/api/browse` + `FilePicker.tsx`; no v1.1 work required
 
-**MVP priority order (from FEATURES.md):**
-1. Global defaults + per-job config
-2. Add job by file path
-3. Job queue list + pause/cancel/retry
-4. Stage-by-stage progress via SSE
-5. Per-chunk VMAF progress
-6. Encoding log per job
+**Defer to v1.2 (P3):**
+- Browser file upload — chunked upload protocol (browser `File.slice()` + server append-at-offset) is a meaningful lift; primarily serves remote-access use cases not yet validated as core need
+
+**Anti-features to explicitly avoid:**
+- Parallel jobs (multiple files simultaneously) — CPU is already saturated by one job with parallel chunks; serial job queue + parallel chunks is the correct model
+- Manual chunk-resume selection — creates consistency problems if profile changed between runs; auto-resume from last completed step is safe
+- Light mode as default — inverts the DaVinci Resolve industrial aesthetic design intent
+
+**See:** `.planning/research/FEATURES.md`
+
+---
 
 ### Architecture Approach
 
-The architecture is Web-Queue-Worker with an embedded process supervisor, all in a single Python process. The FastAPI web server is stateless beyond SQLite — restarts recover by reading DB state. The Job Scheduler is an asyncio background task started via FastAPI lifespan. PipelineRunner is one coroutine per active job, executing all 10 pipeline steps sequentially. FfmpegSubprocess is a thin wrapper around `asyncio.create_subprocess_exec` that parses `-progress pipe:1` output and supports cross-platform graceful cancellation. The SSE EventBus is an in-process `asyncio.Queue` per connected client — no external broker.
+All changes are evolutionary modifications to existing modules — no new backend modules are needed. The architecture has four change areas: (1) `pipeline.py` gets parallel chunk dispatch, resume checkpoints, and CRF oscillation fix; (2) `db.py` gets delete/bulk-delete/cleanup functions plus missing `PRAGMA foreign_keys = ON`; (3) `main.py` gets new DELETE endpoints and the auto-cleanup background task; (4) the frontend gains four new components and targeted modifications to existing ones.
 
-**Major components and responsibilities:**
-1. FastAPI Web Server — HTTP REST endpoints, SSE streaming, static SPA serving; stateless beyond SQLite
-2. SQLite (WAL mode) — durable job state, pipeline step state, SSE event replay ring buffer, configuration
-3. Job Scheduler — asyncio background task; pulls QUEUED jobs, enforces concurrency limit (default: 1), polls for pause/cancel signals
-4. PipelineRunner — one coroutine per active job; executes all 10 steps sequentially; manages the VMAF CRF feedback loop
-5. FfmpegSubprocess — spawns one ffmpeg/ffprobe invocation; parses progress; supports cross-platform graceful cancel (stdin `q\n` then `terminate()`)
-6. SSE EventBus — in-process pub/sub; asyncio.Queue per SSE client; PipelineRunner pushes in, SSE endpoint drains out
-7. WatchFolder Monitor — optional asyncio background task using watchfiles; debounces file writes before enqueueing
-8. React SPA — job queue view, per-job progress (stage, chunk, VMAF, CRF), job controls, VMAF score history
+**Major components and their v1.1 changes:**
 
-**Build order from ARCHITECTURE.md (dependency-driven):**
-Phase 1 → FfmpegSubprocess (foundation), Phase 2 → SQLite state layer, Phase 3 → PipelineRunner (no web), Phase 4 → FastAPI + SSE, Phase 5 → React UI, Phase 6 → Polish and reliability
+1. `pipeline.py` — replace serial chunk `for`-loop with inner `ThreadPoolExecutor` dispatch; add `completed_steps` set gate at each step block (including `create_step`); replace `visited_crfs` set with `history: list[tuple[int, float]]` for midpoint-selection on oscillation exit
+2. `db.py` — add `delete_job`, `delete_jobs_by_status`, `auto_cleanup_jobs`; add `PRAGMA busy_timeout = 5000` and `PRAGMA foreign_keys = ON` to `get_db()`; add `max_parallel_chunks` and `auto_cleanup_hours` to `SETTINGS_DEFAULTS`
+3. `main.py` — `DELETE /api/jobs/{id}` (terminal: hard delete; running: cancel-then-delete); `DELETE /api/jobs/bulk?status=DONE`; register auto-cleanup `asyncio.create_task` in lifespan
+4. `VmafChart.tsx` (new) — recharts `LineChart`; data already in `job.chunks` from existing REST response; lives inside expanded `JobCard`
+5. `HistoryList.tsx` + `BulkActions.tsx` (new) — filter existing `jobs[]` Zustand array to terminal statuses; no second poll loop needed
+6. `ThemeToggle.tsx` (new) — reads/writes `localStorage.theme`; sets `document.documentElement.dataset.theme`; applied in `useLayoutEffect` before first paint
+
+**Key patterns to follow:**
+
+- Parallel chunks use `asyncio.run_coroutine_threadsafe` (Option A) for cross-thread DB writes — keeps all DB access through `db.py`; do not open a second event loop per thread
+- History view is a filtered view over the existing jobs array, not a separate store or poll interval — active queue polls `/api/jobs?status=QUEUED,...`; history does a one-time fetch on mount plus manual refresh
+- Dark mode: `localStorage` is source of truth; `useLayoutEffect` in `App.tsx` applies theme before first paint; Zustand mirrors it optionally for reactive components but does not own it
+- Delete of running job: cancel first (set `cancel_event`), confirm pipeline exits, then remove the DB row — never hard-delete while the pipeline thread is active
+
+**See:** `.planning/research/ARCHITECTURE.md`
+
+---
 
 ### Critical Pitfalls
 
-**Critical (cause rewrites or data loss):**
+1. **Parallel concurrency at the wrong level (N1)** — Raising `ThreadPoolExecutor(max_workers=N)` on the scheduler gives parallel jobs, not parallel chunks. The inner pool must be scoped inside `run_pipeline`. Keep the scheduler's executor at `max_workers=1`.
 
-1. **Subprocess pipe deadlock (C1)** — ffmpeg writes continuous progress to stderr; if the pipe is not actively drained, the OS pipe buffer fills and both processes deadlock permanently. Prevention: use `asyncio.create_subprocess_exec` with async stream readers draining both stdout and stderr concurrently. Never use `process.communicate()` for long-running encodes.
+2. **SQLite BUSY under parallel chunk writes (N2)** — WAL mode allows one writer at a time; default busy timeout is 0 ms. N parallel chunk workers hitting `update_chunk` simultaneously get `OperationalError: database is locked`. Fix: add `PRAGMA busy_timeout = 5000` in `get_db()`.
 
-2. **Windows asyncio event loop cannot spawn subprocesses (C2)** — `asyncio.create_subprocess_exec()` raises `NotImplementedError` on Windows if the SelectorEventLoop is active (some uvicorn configurations do this). Prevention: explicitly assert `ProactorEventLoop` is active at startup on Windows, or run all ffmpeg subprocesses in a `ThreadPoolExecutor` with synchronous `subprocess.Popen`. Decide this strategy before writing any worker code.
+3. **Cancel stops only the active worker in parallel mode (N3)** — In-flight ffmpeg processes are not signalled when `cancel_event` is set. Maintain a job-scoped `list[FfmpegProcess]` protected by a `threading.Lock`; iterate and call `.cancel()` on all handles when cancel fires.
 
-3. **Windows ffmpeg cancellation kills Python parent process (C3)** — `os.kill(pid, signal.CTRL_C_EVENT)` broadcasts to the entire process group, killing the Python parent. Prevention: always spawn ffmpeg with `creationflags=subprocess.CREATE_NEW_PROCESS_GROUP` on Windows; use stdin `q\n` for graceful stop rather than signals.
+4. **Resume creates duplicate step rows (N4)** — Guard the entire step block including `create_step` with `if "StepName" not in completed_steps`. Skipping only the step body while still calling `create_step` produces duplicate rows that break `_attach_stages` and the StageList UI.
 
-4. **VMAF model path escaping on Windows (C4)** — Windows drive letter colons in ffmpeg filter strings are misinterpreted as escape characters. `C:/path` inside a libvmaf filter fails. Prevention: escape the colon as `C\:/path` inside filter strings. Write a dedicated `vmaf_model_path_for_filter()` utility at Phase 1 and validate at startup.
+5. **Resume trusts filesystem instead of DB status (N5)** — A crash between file write and `update_chunk(..., status="DONE")` leaves a physically present but DB-incomplete chunk. Trust the DB: a chunk is complete only if its row has `status="DONE"`. Delete and re-encode any chunk file whose DB row is not DONE.
 
-5. **VMAF returns zero or wrong score due to resolution/format mismatch (C5)** — libvmaf silently returns 0 if distorted and reference inputs differ in resolution or pixel format, or if PTS is not normalized to 0. Prevention: always include explicit `scale`, `format=yuv420p`, and `setpts=PTS-STARTPTS` in VMAF filter graphs.
+6. **Cascade delete without foreign key pragma (N10)** — `PRAGMA foreign_keys = ON` is currently not set in `get_db()`. Without it, `DELETE FROM jobs WHERE id=?` leaves orphaned rows in `steps`, `chunks`, and `logs`. Either add the pragma or delete child rows explicitly in order within one transaction.
 
-**Moderate (correctness bugs, recoverable):**
+7. **Deleting a running job leaves orphaned ffmpeg processes (N9)** — The delete endpoint must cancel the job first, wait for the pipeline to exit, then remove the DB row. Hard-deleting a RUNNING job without cancellation leaves ffmpeg processes consuming CPU indefinitely.
 
-6. **Ghost jobs after crash (M1)** — jobs left in RUNNING state after server crash are never picked up again. Prevention: add `heartbeat_at` timestamp column; on startup, transition RUNNING jobs older than 60s to FAILED and re-queue.
-
-7. **ffmpeg carriage return progress parsing (M2)** — ffmpeg default stderr uses `\r` not `\n`; `readline()` blocks indefinitely. Prevention: use `-progress pipe:1 -nostats` for structured key=value output, parseable line-by-line.
-
-8. **Concat list "unsafe file name" (M3)** — ffmpeg concat demuxer rejects paths with spaces or absolute paths in default safe mode. Prevention: always pass `-safe 0`; write concat list using `Path.as_posix()`.
-
-9. **PySceneDetect API instability (M4)** — breaking changes between minor versions. Prevention: pin to `scenedetect>=0.6.7,<0.7`; wrap in adapter layer.
-
-10. **CRF feedback loop non-convergence (m5)** — VMAF can oscillate around the target, causing an infinite loop. Prevention: track tried CRF values; add max iteration limit (10); accept best result at CRF bounds.
+**See:** `.planning/research/PITFALLS.md` for the full catalog including CRF selection logic (N6), upload memory exhaustion (N7), directory traversal (N8), and Zustand anti-patterns (N11, N12).
 
 ---
 
 ## Implications for Roadmap
 
-### Phase 1: Core Subprocess Layer
+Based on combined research, the architecture recommends a 3-phase build order for v1.1.
 
-**Rationale:** All other phases depend on proven cross-platform subprocess execution. Windows ProactorEventLoop, graceful cancellation, and progress parsing must be solved here — retrofitting is a full rewrite. This is the highest-leverage phase.
+### Phase 1: Pipeline Reliability
 
-**Delivers:** A CLI module that runs a single ffmpeg command, streams structured progress to stdout, and supports graceful cross-platform cancellation. Validated on both Windows and Linux.
+**Rationale:** CRF oscillation fix, job resume, and parallel chunk encoding all modify the same loop inside `pipeline.py`. Doing them together avoids restructuring the loop twice. Resume must come before parallelism because the resume logic must also handle partially-completed parallel batches — implementing parallelism first and adding resume second is a second refactor of the same code. The CRF oscillation fix is zero-risk and ships first within the phase.
 
-**Addresses:** Path entry input (file validation), ffprobe for duration extraction
+**Delivers:** Correct quality selection on oscillating content; crash-resilient overnight encodes; 2x+ throughput on multi-core machines; `max_parallel_chunks` setting in SettingsModal.
 
-**Avoids:**
-- C1 (pipe deadlock) — async stream readers from day one
-- C2 (Windows asyncio subprocess) — ProactorEventLoop assertion at startup
-- C3 (Windows ffmpeg cancellation) — `CREATE_NEW_PROCESS_GROUP` + stdin `q\n` pattern
-- C4 (VMAF model path escaping) — `vmaf_model_path_for_filter()` utility written and tested
-- M2 (carriage return parsing) — `-progress pipe:1 -nostats` from the start
-- m1 (pathlib convention) — `str()` vs `as_posix()` convention established
+**Features addressed:** Smart CRF oscillation resolution (P1), Job resume from crash (P1), Parallel chunk encoding (P1)
 
-**Research flag:** No additional research needed. asyncio subprocess patterns are well-documented.
+**Pitfalls to avoid:** N1 (wrong concurrency level), N2 (SQLite BUSY), N3 (cancel all parallel workers), N4 (duplicate step rows on resume), N5 (filesystem vs DB trust), N6 (CRF midpoint selection)
 
-### Phase 2: SQLite State Layer
+**Research flag:** Standard patterns — well-documented in ARCHITECTURE.md with concrete code sketches. No phase research needed.
 
-**Rationale:** The job scheduler, PipelineRunner, and web API all depend on a correct database schema. Schema must be right before anything writes to it — migrations on a running queue are painful.
+---
 
-**Delivers:** A Python module with tested DB functions: job CRUD, step tracking, event insertion, config storage. No web server yet.
+### Phase 2: Job Management
 
-**Schema includes:** `jobs`, `steps`, `events` tables; WAL mode + `busy_timeout` PRAGMAs; `heartbeat_at` column; `temp_files` JSON column for crash cleanup.
+**Rationale:** Job delete, bulk-clear, history view, and auto-cleanup are fully independent of pipeline changes. They share a common foundation: the `delete_job` and `delete_jobs_by_status` functions in `db.py`. Build these together once the pipeline is stable. The `PRAGMA foreign_keys = ON` fix must be the first task in this phase.
 
-**Avoids:**
-- M1 (ghost jobs) — heartbeat column and startup recovery query in schema from day one
-- M6 (temp file orphans) — temp_files column in schema from day one
-- m4 (SQLite blocking) — WAL mode in schema initialization
+**Delivers:** Users can delete individual jobs and bulk-clear completed/failed history. Active queue shows only jobs needing attention. Optional auto-cleanup prevents unbounded history growth. `HistoryList` and `BulkActions` frontend components.
 
-**Research flag:** No additional research needed. SQLAlchemy 2.0 async patterns are well-documented.
+**Features addressed:** Delete individual jobs (P1), Bulk-clear completed/failed (P1), History view (P1), Auto-cleanup (P2)
 
-### Phase 3: Pipeline Runner (no web)
+**Pitfalls to avoid:** N9 (orphaned ffmpeg processes from deleting running job), N10 (cascade delete without foreign key pragma)
 
-**Rationale:** The 10-step encoding pipeline is the core product. Validate it end-to-end with a real video file before adding web complexity. This is where VMAF correctness, CRF feedback loop convergence, and PySceneDetect integration are proven.
+**Research flag:** Standard patterns. No phase research needed.
 
-**Delivers:** A CLI that encodes a single file end-to-end: FFV1 intermediate → scene detect → split → audio extract → per-chunk encode with VMAF CRF loop → concat → mux → cleanup. Progress logged to SQLite. Validated on both platforms.
+---
 
-**Addresses:** Stage-by-stage progress (logged), per-chunk VMAF progress (stored), encoding log per job, VMAF score history (data model built here)
+### Phase 3: UI Enhancements
 
-**Avoids:**
-- C5 (VMAF format mismatch) — scale+format+setpts normalization in VMAF filter graph
-- M3 (concat unsafe file names) — `-safe 0` in concat step
-- M4 (PySceneDetect API instability) — adapter layer around PySceneDetect Python API
-- m3 (scene CSV parsing) — use Python API scene objects, not CSV
-- m5 (CRF non-convergence) — visited-CRF set and max-iteration guard in feedback loop
+**Rationale:** VMAF chart, CRF convergence indicator, dark mode toggle, and optionally browser file upload are additive UI improvements over already-persisted data. They carry zero pipeline risk. The VMAF chart is pure Recharts over existing `chunks` data. Dark mode requires only CSS + `localStorage`. File upload is the one high-complexity item and should be evaluated for deferral to v1.2.
 
-**Research flag:** Phase-level research may be useful for the VMAF filter graph construction and the specific x264 settings from PROJECT.md. The CRF feedback loop has no external reference implementation — this is novel territory.
+**Delivers:** Visual VMAF quality history per job; dark/light theme toggle; improved CRF diagnostic display in history view. Optionally: browser upload for remote workflow.
 
-### Phase 4: FastAPI API + SSE + Job Scheduler
+**Features addressed:** VMAF score history chart (P2), CRF convergence indicator (P2), Dark mode toggle (P2), Browser file upload (P3 — recommend deferring to v1.2)
 
-**Rationale:** Add the web layer on top of the proven pipeline. REST endpoints for job lifecycle; SSE EventBus for progress; asyncio background task for the scheduler. All behavior is already tested in Phase 3.
+**Pitfalls to avoid:** N7 (upload reads entire file into memory — stream with `aiofiles` 1 MB chunks), N8 (directory traversal in browse endpoint — verify `allowed_roots` path guard), N11 (Zustand object selectors causing infinite re-renders — use individual selectors), N12 (theme flash — apply in `useLayoutEffect` before first paint)
 
-**Delivers:** A working API with curl-testable endpoints. SSE progress visible in browser DevTools. Job submission, pause, cancel, reorder, and retry via HTTP. Scheduler running in FastAPI lifespan.
+**Research flag:** VMAF chart and dark mode are standard patterns (skip research). If browser file upload is included in this phase, research the chunked upload protocol details and staging directory lifecycle before committing scope.
 
-**Addresses:** Job queue list, pause/resume queue, cancel individual job, retry failed job, configurable directory paths (via config API), global defaults API
-
-**Avoids:**
-- M5 (lost events on SSE reconnect) — emit current job state on connect; use Last-Event-ID replay from events ring buffer; keepalive heartbeat every 15s
-- Anti-Pattern 4 (FastAPI BackgroundTasks for encoding) — custom asyncio lifespan task with SQLite state
-
-**Research flag:** No additional research needed. FastAPI SSE patterns are documented and covered in ARCHITECTURE.md.
-
-### Phase 5: React UI
-
-**Rationale:** Build the browser interface against the proven Phase 4 API. All data contracts are defined; all edge cases are handled in the backend.
-
-**Delivers:** Job queue view with status badges; per-job progress panel (stage name, stage %, chunk N/M, live VMAF score, current CRF); job controls (add via path, pause, cancel, retry); VMAF score history table; settings page for global defaults and directory paths.
-
-**Addresses:** All table-stakes features visible in the UI; stage-by-stage progress display; per-chunk VMAF progress display; encoding log (expandable panel)
-
-**Research flag:** Standard React + TanStack Query + SSE patterns. No additional research needed.
-
-### Phase 6: File Input Expansion
-
-**Rationale:** Core pipeline is proven and UI is working. Add the secondary input methods that expand the tool's reach without touching the critical pipeline.
-
-**Delivers:** Watch folder monitoring (watchfiles, debounced), browser file upload (multipart, python-multipart, aiofiles), server-side folder browse API.
-
-**Addresses:** Watch folder input, browser file upload, server-side folder browse differentiator features
-
-**Avoids:**
-- Watch folder debounce pattern for large MKV files — size stability check before enqueue
-
-**Research flag:** Standard patterns. No additional research needed.
-
-### Phase 7: Polish and Reliability
-
-**Rationale:** Hardening before regular use. Restart recovery, disk space warnings, ETA estimation, error message quality, dark mode.
-
-**Delivers:** Startup recovery (re-queues interrupted RUNNING jobs), disk space pre-flight check, ETA display, improved error messages, dark mode CSS.
-
-**Addresses:** Ghost job recovery on restart (heartbeat cleanup), disk space warnings, estimated time remaining, dark mode, temp file orphan cleanup on startup
-
-**Research flag:** No additional research needed. Patterns are standard.
+---
 
 ### Phase Ordering Rationale
 
-The dependency chain from ARCHITECTURE.md is strict: subprocess wrapper must exist before PipelineRunner, PipelineRunner must exist before the scheduler, the scheduler must exist before the API, and the API must exist before the UI. Any shortcut produces an untested interface boundary that causes rewrites.
+- Pipeline changes come first because resume and parallelism restructure the same `for`-loop; either order forces a second pass through the same code.
+- Job management is independent of pipeline changes and can start in parallel with Phase 1 if capacity allows, but should not block on Phase 1 completion.
+- UI enhancements come last because they are purely additive over stable backend data; the VMAF chart has no value until reliable per-chunk data exists from Phase 1.
+- Browser upload is deferred because it introduces a new upload protocol surface (chunked slice+reassemble with no built-in tus support) that is independent of all other v1.1 work and whose use case is not yet validated.
 
-The critical cross-platform concerns (pitfalls C1 through C4) are all in Phase 1. Solving them early means every subsequent phase inherits correct behavior. Solving them late means the entire stack above them needs regression testing.
-
-Separating the pipeline (Phase 3) from the web layer (Phase 4) is the single most important ordering decision. It makes the encoding logic independently testable and means the web API is specifying, not discovering, the data contracts.
-
-Feature expansion (Phase 6) is deliberately after the UI (Phase 5) because watch folder and upload are input methods, not core pipeline features. They should not block the queue manager from reaching working state.
+---
 
 ### Research Flags
 
-**Needs phase-level research:**
-- **Phase 3 (Pipeline Runner):** The VMAF filter graph construction with correct format normalization for the specific FFV1 → x264 chunk comparison case is worth a focused research spike. The x264 settings from PROJECT.md (custom partitions, trellis, deblock, subq, me_method) should be validated as valid libx264 options in current ffmpeg. The interaction between PySceneDetect scene boundary timestamps and ffmpeg `-ss` / `-to` split accuracy deserves a test with actual MKV content.
+**Needs deeper research during planning:**
+- **Phase 3 (Browser file upload only):** Chunked upload implementation details — `File.slice()` chunk size selection, `X-Upload-Offset` header semantics, server-side append atomicity, upload session cleanup after job completion. The FEATURES.md assessment is MEDIUM confidence. Research before committing to v1.1 scope.
 
 **Standard patterns (skip research-phase):**
-- **Phase 1 (Subprocess):** Fully documented in ARCHITECTURE.md and PITFALLS.md. Patterns are established.
-- **Phase 2 (SQLite):** SQLAlchemy 2.0 async is well-documented. Schema is fully specified in ARCHITECTURE.md.
-- **Phase 4 (FastAPI + SSE):** SSE patterns fully specified in ARCHITECTURE.md and STACK.md.
-- **Phase 5 (React UI):** Standard React + TanStack Query. No novel patterns.
-- **Phase 6 (Input expansion):** watchfiles and python-multipart are straightforward.
-- **Phase 7 (Polish):** Standard patterns.
+- **Phase 1:** `asyncio.run_coroutine_threadsafe`, inner `ThreadPoolExecutor` scoped to job, checkpoint-based resume with `completed_steps` set — fully specified with code sketches in ARCHITECTURE.md.
+- **Phase 2:** SQLite cascade delete semantics, REST DELETE endpoint behavior for running vs terminal jobs, `asyncio.create_task` background cleanup — straightforward.
+- **Phase 3 (excluding upload):** Recharts `LineChart` + `ReferenceArea`, CSS `[data-theme]` dark mode, `localStorage` persistence — all HIGH confidence with official documentation.
 
 ---
 
@@ -254,49 +180,48 @@ Feature expansion (Phase 6) is deliberately after the UI (Phase 5) because watch
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All technologies verified against official docs and PyPI; alternatives explicitly eliminated with documented rationale |
-| Features | MEDIUM-HIGH | Table stakes and differentiators derived from Tdarr, HandBrake, Unmanic comparisons; some reference sources are LOW confidence (third-party blogs) but core feature set is clear |
-| Architecture | HIGH | Component design verified against official asyncio, FastAPI, SQLite docs; build order is dependency-driven, not speculative |
-| Pitfalls | HIGH | Critical pitfalls verified against official Python docs, Netflix VMAF GitHub issues, and Windows-specific subprocess behavior docs |
+| Stack | HIGH | All new additions use stdlib or a single well-verified npm package. Verified against current npm registry (recharts 3.8.0), Python docs, and Tailwind v4 docs. |
+| Features | HIGH | P1/P2/P3 priority split is clear and well-reasoned. One MEDIUM gap: browser upload protocol behavior at >10 GB has not been validated. |
+| Architecture | HIGH | Based on direct code inspection of all existing modules on 2026-03-17. Integration points per feature are fully specified with concrete code patterns. No speculation. |
+| Pitfalls | HIGH | v1.1 pitfalls derived from direct code analysis of the existing application + official Python docs + ffmpeg docs. SQLITE_BUSY and cancel-all-parallel-workers are the most likely to be hit if not addressed proactively. |
 
-**Overall confidence:** HIGH
+**Overall confidence: HIGH**
 
 ### Gaps to Address
 
-- **VMAF filter graph exact syntax for FFV1-to-x264 chunk comparison:** Pitfalls research gives the pattern; Phase 3 spike should validate with real content before the full feedback loop is built. Risk: VMAF returns wrong scores silently (C5), derailing the entire quality model.
+- **`PRAGMA foreign_keys = ON` current state:** ARCHITECTURE.md explicitly notes this pragma is missing from `get_db()`. Confirm before building Phase 2. If it has been added since the last code audit, cascade delete may already work.
 
-- **x264 libx264 option compatibility:** The PROJECT.md x264 settings use ffmpeg libx264 option names that may have changed in recent ffmpeg versions (`partitions`, `me_method`, `b_strategy`, `sc_threshold`). Validate against `ffmpeg -h encoder=libx264` output on the target machine at Phase 3.
+- **Resume + parallel interaction edge case:** When a parallel-encoded job is resumed, chunks that were mid-encode at crash time have `status='RUNNING'` in the DB (not DONE). The safe rule is: treat any non-DONE chunk as incomplete, delete its output file, and re-encode. Validate this edge case explicitly during Phase 1 testing with a simulated mid-chunk crash.
 
-- **PySceneDetect VFR handling:** PITFALLS.md flags VFR sources as known-broken in PySceneDetect. The project should define at Phase 3 whether to reject VFR input at validation or attempt to convert to CFR during the FFV1 intermediate step.
+- **Browser upload at scale:** The 1 MB chunk streaming approach is documented for moderate files. Behavior at 50+ GB has not been validated. If upload is included in v1.1, test with a 20+ GB file before shipping.
 
-- **Pause mid-step user expectation:** ARCHITECTURE.md documents that pause waits for the current step to finish (no mid-encode pause). This is a known UX limitation — particularly for FFV1 intermediate encoding of long films. This should be surfaced clearly in the UI (e.g., "Pausing after current step completes") to avoid user confusion.
-
-- **Audio codec support scope:** PROJECT.md requires EAC3, AAC, FLAC, and copy. EAC3 encoding via ffmpeg requires a build with the eac3 encoder. Validate the target ffmpeg binary supports `acodec eac3` before Phase 3.
+- **Recharts bundle size impact:** recharts@3.8 is approximately 100 KB gzipped. The current frontend bundle size is not documented. Measure before and after adding the dependency and confirm acceptable for the target use case.
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Python asyncio subprocess docs — subprocess cross-platform behavior, ProactorEventLoop
-- FastAPI official docs — SSE, WebSocket, StaticFiles, lifespan
-- SQLite WAL mode docs — concurrency, PRAGMA configuration
-- SQLAlchemy 2.0 async docs — aiosqlite integration
-- Netflix VMAF GitHub — libvmaf ffmpeg integration, known scoring issues
-- ffmpeg official docs — `-progress` flag, concat demuxer, libx264 encoder options
+- Direct codebase inspection: `src/encoder/{main,pipeline,scheduler,db,sse,ffmpeg}.py` (2026-03-17) — architecture and pitfall assessments
+- Direct codebase inspection: `frontend/src/{store/jobsStore,types/index,components/*}.ts(x)` (2026-03-17) — frontend architecture
+- recharts npm registry (3.8.0 confirmed): https://www.npmjs.com/package/recharts
+- Tailwind CSS v4 dark mode official docs: https://tailwindcss.com/docs/dark-mode
+- asyncio.Semaphore stdlib docs: https://docs.python.org/3/library/asyncio-sync.html
+- asyncio.run_coroutine_threadsafe docs: https://docs.python.org/3/library/asyncio-task.html#asyncio.run_coroutine_threadsafe
+- FastAPI UploadFile streaming docs: https://fastapi.tiangolo.com/tutorial/request-files/
 
 ### Secondary (MEDIUM confidence)
-- PySceneDetect changelog and migration guide — API stability warnings, 0.6.x breaking changes
-- Celery Windows issues (GitHub issue #5738, celery.school) — prefork pool broken on Windows
-- Charles Leifer SQLite performance blog — WAL concurrency patterns
-- Web-Queue-Worker pattern (Microsoft Azure Architecture Guide) — pattern reference
-- Streaming Learning Center — VMAF Windows path escaping
+- asyncio Semaphore concurrency control: https://rednafi.com/python/limit-concurrency-with-semaphore/
+- Recharts React 19 compatibility tracking: https://github.com/recharts/recharts/issues/6857
+- Recharts 3.0 migration guide: https://github.com/recharts/recharts/wiki/3.0-migration-guide
+- Dark mode with CSS variables + localStorage: https://www.joshwcomeau.com/react/dark-mode/
+- Bulk action UX guidelines: https://www.eleken.co/blog-posts/bulk-actions-ux
+- asyncio periodic task pattern: https://superfastpython.com/asyncio-periodic-task/
 
-### Tertiary (LOW confidence)
-- ffdash GitHub project — VMAF display pattern reference (single project, limited validation)
-- Third-party Tdarr/Unmanic comparison blog — feature landscape reference only
+### Tertiary (MEDIUM confidence — implementation details not validated at scale)
+- Chunked upload browser pattern: https://www.fastpix.io/blog/how-to-upload-large-video-files-efficiently-using-chunking
+- Checkpoint-based recovery patterns: https://dev3lop.com/checkpoint-based-recovery-for-long-running-data-transformations/
 
 ---
-
-*Research completed: 2026-03-07*
+*Research completed: 2026-03-17*
 *Ready for roadmap: yes*

@@ -1,138 +1,269 @@
-# Feature Landscape
+# Feature Research
 
-**Domain:** Video encoding queue management web application
-**Project:** VibeCoder Video Encoder (x264 + VMAF-targeted quality pipeline)
-**Researched:** 2026-03-07
-**Reference apps:** Tdarr, Unmanic, HandBrake, Jellyfin, Adobe Media Encoder, Bitmovin
+**Domain:** Video encoding queue manager — v1.1 new capabilities (Quality & Manageability)
+**Researched:** 2026-03-17
+**Confidence:** HIGH (most features have well-established UX patterns; pipeline internals informed by existing codebase review)
+
+> Note: v1.0 table-stakes features (job queue, pause/cancel/retry, real-time SSE progress, encoding profiles,
+> global settings, watch folder) are already built. This document covers only v1.1 additions.
 
 ---
 
-## Table Stakes
+## Feature Landscape
 
-Features users expect from any video encoding queue manager. Missing = product feels broken.
+### Table Stakes (Users Expect These)
+
+Features that any job management tool provides. Missing them makes the product feel unfinished now that v1.0 exists.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Job list with current status | Core affordance — users must see what is queued, running, done, failed | Low | Statuses: queued, running, done, failed, cancelled |
-| Add job by file path | Standard for server-side tools; primary input for NAS/local-file workflows | Low | PROJECT.md requires this |
-| Real-time progress display | Encoding takes minutes-to-hours; users abandon tools with no feedback | Medium | Requires WebSocket or SSE; show % and stage |
-| Pause / resume queue | Long encode sessions need to be interruptible without losing work | Medium | Pause stops starting new jobs; running job may need graceful stop |
-| Cancel individual job | Users add wrong files; must be able to abort without killing the whole queue | Low-Medium | Must clean up temp files on cancel |
-| Retry failed job | Encoding fails for file-level reasons (corrupt source, codec mismatch); retry without re-entering settings | Low | Re-enqueue same job with same config |
-| Per-job configuration | Different source files need different VMAF targets, audio codecs | Medium | PROJECT.md requires per-job: VMAF range, CRF bounds, audio codec |
-| Global defaults / presets | Without defaults, every job requires full manual config — unusable | Low | Users set defaults once; per-job config overrides |
-| Job history / completion list | Users need to verify output and diagnose failures after the fact | Low-Medium | Persist completed and failed jobs with final status |
-| Encoding log per job | Diagnosing encoding failures requires seeing FFmpeg stderr output | Medium | Capture and store per-job log; display on demand |
-| Output file size + compression ratio | Primary outcome metric: did the encode actually save space or hit quality target? | Low | Computed after completion; show input vs output bytes |
-| Configurable directory paths | Input, output, temp paths must be configurable for cross-platform use | Low | PROJECT.md requires this |
+| Delete individual jobs | Every queue tool has delete; "I can't remove a done job" is an immediate annoyance | LOW | DB row delete + cascade to steps/chunks/logs. Hard-delete (no soft-delete) is correct for a local tool. |
+| Bulk-clear completed jobs | Standard batch management affordance; grows critical as queue fills up | LOW | Single `DELETE WHERE status = 'DONE'`. Confirm dialog or undo toast. |
+| Bulk-clear failed jobs | Pairs with completed clear; symmetry is expected | LOW | Same pattern, different status filter. |
+| Separate history view for completed jobs | Active queue should show only jobs needing attention; completed jobs clutter it | MEDIUM | Tab or collapsible section. History is read-only — no retry from history (retry lives in active queue). |
+| Smart CRF oscillation resolution | CRF loop currently picks the last CRF it landed on — quality outcome is non-deterministic on oscillating content | LOW | Pure algorithm change in pipeline.py. Track all (CRF, VMAF) pairs during the loop; at exit pick the pair closest to window center. Tiebreak: lower CRF. No UX change needed. |
+| Job resume after crash | Long overnight encodes crashing = hours of lost work. Users of encoding tools expect crash resilience. | HIGH | DB already has step-level completion tracking. Pipeline needs to check step status at entry and skip completed steps. |
 
----
+### Differentiators (Competitive Advantage)
 
-## Differentiators
-
-Features that distinguish this tool from generic queue managers. Not universally expected, but high value for the target workflow.
+Features that distinguish this tool from HandBrake/Tdarr and deliver v1.1's stated quality and manageability improvements.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Per-chunk VMAF progress display | Unique to this pipeline; shows CRF adjustment in real time as each scene chunk encodes | High | Exposes VMAF score per chunk and CRF adjustments (±1 loop); no reference app does this at chunk granularity in a web UI |
-| VMAF score history per job | After completion, show per-chunk VMAF scores and final CRF used; proves quality target was hit | Medium | Store per-chunk results in DB; render as a table or sparkline chart |
-| Stage-by-stage progress | Pipeline has 8 distinct stages (FFV1 intermediate → scene detect → split → audio extract → chunk encode → merge → mux → cleanup); showing the current stage gives far better UX than a raw percentage | Medium | Each stage maps to a named subprocess; expose stage name + stage-level % |
-| Watch folder input | Drop files in a folder; they auto-queue. Covers NAS and automation workflows | Medium | Requires background polling or inotify; PROJECT.md requires this |
-| Browser file upload | Enables remote workflows where the server is headless | Medium | Requires multipart upload handling; temp storage on server; PROJECT.md requires this |
-| Folder browse (server-side) | Browse the server's filesystem from the UI to pick a source file | Medium | Tree or flat directory listing via API; simpler than upload for local use |
-| Estimated time remaining | Encoding duration is unpredictable; ETA reduces anxiety for long jobs | Medium | Calculated from current chunk encode rate vs remaining chunks |
-| CRF convergence indicator | Show whether the VMAF feedback loop is converging (CRF is stable) or oscillating (encoding quality is hard to hit for this content) | Medium | Derived from per-chunk CRF change history; early warning of problem encodes |
-| Disk space warnings | Temp files from the FFV1 intermediate + chunks can be 3–5x source size; running out of disk mid-encode is catastrophic | Low-Medium | Check available space before starting; warn if projected temp usage exceeds threshold |
-| Dark mode | Standard quality-of-life expectation for power users running terminal-adjacent tools | Low | CSS prefers-color-scheme + theme toggle |
+| Parallel chunk encoding with configurable concurrency | Chunks are independent post-split — this is free throughput. 2–4x speedup on multi-core machines. No comparable self-hosted tool does per-chunk parallelism with VMAF feedback. | HIGH | `asyncio.Semaphore(N)` gates concurrent chunk encodes. N is a configurable setting (default: 2). Each chunk encode is a subprocess on a ThreadPoolExecutor thread — existing Windows-compatible pattern. ETA math must account for parallelism. |
+| VMAF score history chart per job | Direct visual proof of quality consistency across scenes. HandBrake offers no built-in VMAF chart. Shows which chunks were hard to encode. | MEDIUM | Line chart: x = chunk index, y = VMAF score. Reference lines at vmafMin / vmafMax. Color-fill target band. Data already in `chunks` table. Recharts is the natural React library choice. Lives in expanded JobCard alongside existing ChunkTable. |
+| CRF convergence indicator (passes count) | Shows which chunks needed re-encodes — actionable diagnostic for tuning VMAF targets and CRF ranges. Already partially present (Passes column in ChunkTable, yellow when > 1). | LOW | Extend to be visible in history view post-completion, not just during active encoding. Tooltip explaining what re-encodes mean adds value for new users. |
+| Auto-cleanup with configurable retention | Prevents unbounded history growth without forcing manual cleanup. Standard in enterprise job systems. | LOW | Configurable retention period (default: 30 days) in settings. Background task on startup + periodic interval deletes DONE/CANCELLED/FAILED jobs older than threshold. |
+| Server-side directory browser for file selection | Reduces friction for local/NAS users who currently type long paths. Does not require upload — just browse and select. | MEDIUM | REST endpoint returning directory listing JSON. Modal tree/list in frontend. Security: scope to configurable allowed root paths. Do not expose arbitrary filesystem. |
+| Browser file upload for source videos | Enables remote workflow: encode on a powerful server, upload from a laptop. | HIGH | Large files (10–100 GB) require chunked upload — browser slices file, POSTs slices with offset headers, server appends to staging file. FastAPI `UploadFile` is not suitable for large files (single-request body). tus protocol is full-featured but heavy; a manual slice+reassemble approach is simpler and sufficient for local-network use. |
 
----
+### Anti-Features (Commonly Requested, Often Problematic)
 
-## Anti-Features
-
-Features to deliberately NOT build in the initial phases. These create scope creep or complexity with little return given the project's single-user, quality-over-throughput focus.
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Distributed / multi-node encoding | Tdarr's primary differentiator; immense infrastructure complexity for a single-machine personal tool | Run one worker on the host; design backend so a second worker node could be added later without a rewrite |
-| Hardware accelerator (GPU/NVENC/VAAPI) selection | This pipeline is x264 (CPU only) by design; quality targets require software encoder; GPU options would require separate quality calibration | Keep as a future extension point in config, do not implement |
-| Library scanning / media management | Tdarr/Unmanic solve this; adds database-heavy features (codec inventory, pie charts, health checks) orthogonal to the queue goal | Accept individual files only; no library-wide scanning |
-| Subtitle handling / container manipulation | Out of scope; the pipeline is video + configurable audio only | Audio codec is already configurable; subtitles are pass-through or dropped at mux stage |
-| Multi-profile output (one source → many renditions) | Cloud encoding platforms (AWS MediaConvert, Bitmovin) solve this; the use case here is single-output archive quality | One job = one output file |
-| Plugin system | Tdarr/Unmanic complexity tradeoff; plugins require a stable API contract and test surface that slows initial development | Hard-code the pipeline; add CLI hooks for post-processing scripts only if demand emerges |
-| User authentication / multi-user | Single-user personal tool; auth adds session management, password reset, RBAC surface | Bind to localhost or trust network; add optional basic auth header as a lightweight gate if needed |
-| Cloud storage integration (S3, Dropbox) | Network-based sources complicate the temp-file model; the tool operates on locally mounted paths | Support UNC/network paths; leave cloud sync to the filesystem layer |
-| Mobile-first responsive UI | The dashboard shows dense technical data (VMAF scores, chunk tables, log output); mobile is a poor fit | Ensure the layout is readable on a tablet; do not optimize for phone-screen widths |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Parallel jobs (multiple files encoding simultaneously) | Power users want maximum throughput | CPU is fully saturated by one job with parallel chunk encoding enabled. Two jobs fight for CPU, both get slower. Serial job queue + parallel chunks is the correct model. | Parallel chunk encoding within a single job (PIPE-V2-01) |
+| User-controlled resume (pick which chunk to restart from) | "Skip chunks 1–20, redo from 21" sounds useful | Creates consistency problems if profile changed since original encode. Existing encoded chunks may be stale. Auto-resume at last completed step is safe; manual chunk selection is not. | Automatic crash-resume from last completed step (PIPE-V2-02) |
+| Upload progress shown as a job row | "Show upload status in the queue" feels unified | Upload and encode are different operations with different failure modes. Conflating them complicates cancel, error recovery, and status semantics. | Upload progress widget in the file input area only. Job row created after upload completes and encode begins. |
+| Per-chunk retry (retry one bad chunk) | Fine-grained quality control | The VMAF-targeted CRF loop already handles quality variance per chunk automatically. Smart CRF oscillation resolution eliminates the remaining quality non-determinism. Manual per-chunk retry adds complexity with no benefit. | Smart CRF oscillation resolution (PIPE-V2-03) |
+| Light mode as default | "Some users prefer light" | The existing app has a dark industrial aesthetic (DaVinci Resolve inspired). Changing the default inverts the design intent. Toggle gives users the choice without changing the baseline. | Dark mode toggle — dark is default, light is opt-in. Persist in localStorage. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Global defaults
-  └── Per-job configuration (overrides defaults; defaults must exist first)
-        └── Job queue (jobs carry their config snapshot at submission time)
+Parallel chunk encoding
+    └──requires──> asyncio.Semaphore concurrency gate in pipeline.py inner loop
+    └──requires──> Per-chunk progress already working correctly (done in v1.0)
+    └──enhances──> ETA display (ETA formula must account for parallel throughput)
+    └──complicates──> Job resume (resume must reconstruct which parallel chunks completed)
 
-File input methods (path entry, folder browse, watch folder, browser upload)
-  └── Job queue (all inputs create queue entries)
+Job resume from crash
+    └──requires──> Step-level completion status in DB (already exists: steps table)
+    └──requires──> Pipeline entry point checks step DB status and skips DONE steps
+    └──requires──> Chunk-level DONE tracking (already exists: chunks table status)
+    └──enhances when combined with──> Parallel chunk encoding (implement resume first, parallelism second)
 
-Job queue
-  └── Real-time progress display (requires running jobs to report state)
-  └── Job history (completed/failed jobs land here)
-  └── Encoding log per job (generated during job execution)
+Smart CRF oscillation resolution
+    └──requires──> Existing VMAF scoring loop in pipeline.py (already exists)
+    └──enhances──> VMAF score history chart (chart shows the "winning" VMAF more accurately)
+    └──no UI changes required
 
-Per-chunk VMAF progress
-  └── Stage-by-stage progress (VMAF loop is a sub-stage of chunk encoding)
-  └── VMAF score history per job (per-chunk data accumulated during job)
+VMAF score history chart
+    └──requires──> Per-chunk VMAF data persisted post-job (already in chunks table)
+    └──requires──> Chart library (Recharts — add to frontend dependencies)
+    └──enhances──> CRF convergence indicator (colocate chart and passes data in JobCard)
 
-Watch folder
-  └── Configurable directory paths (watch folder path must be configurable)
+CRF convergence indicator (passes count)
+    └──requires──> Pass count per chunk in DB (already stored as passes column)
+    └──enhances──> VMAF score history chart (shown alongside chart or as chart overlay)
+
+Delete individual jobs
+    └──requires──> Cascade delete for steps, chunks, logs rows in DB
+    └──requires──> SQLite foreign key enforcement (PRAGMA foreign_keys = ON at connection time)
+    └──enables──> Bulk-clear operations (bulk = batch deletes)
+
+Bulk-clear operations
+    └──requires──> Delete individual jobs (same underlying operation, batched)
+    └──no new UI pattern — standard "Clear completed" / "Clear failed" buttons
+
+History view
+    └──requires──> Status-based list filtering (DONE/CANCELLED/FAILED vs QUEUED/RUNNING/PAUSED)
+    └──requires──> Delete individual jobs (history rows need a delete action)
+    └──enables──> Auto-cleanup (users can see what gets cleaned before trusting auto-cleanup)
+
+Auto-cleanup
+    └──requires──> History view (user trust)
+    └──requires──> Retention period setting (new settings field in settings modal)
+    └──requires──> Background task on startup to delete expired history rows
 
 Browser file upload
-  └── Configurable directory paths (uploaded files need a landing directory)
+    └──requires──> Chunked upload endpoint in FastAPI (new route: /api/upload)
+    └──requires──> Upload staging directory (configurable, separate from watch folder)
+    └──conflicts-with──> Server-side directory browser (distinct input modes; keep UI separate)
 
-Disk space warnings
-  └── Configurable directory paths (must know temp dir to check free space)
+Server-side directory browser
+    └──requires──> Directory listing REST endpoint (/api/browse?path=...)
+    └──requires──> Allowed-paths security scope (settings: browseable_roots list)
+    └──enhances──> Existing path entry (browser replaces typing for local files)
 
-Estimated time remaining
-  └── Real-time progress display (ETA is part of the progress model)
-
-CRF convergence indicator
-  └── Per-chunk VMAF progress (derived from CRF adjustment history per chunk)
+Dark mode toggle
+    └──requires──> Verify CSS custom properties are already the theming mechanism (they are — var(--bg), var(--txt-2), etc.)
+    └──requires──> data-theme attribute on <html> or <body>, toggled by JS
+    └──requires──> Persist choice in localStorage
+    └──no conflicts
 ```
+
+### Dependency Notes
+
+- **Job resume + parallel chunk encoding:** Implement resume first, then layer in parallelism. When both are active, the resume logic must reconstruct which chunks in a parallel batch completed (status = 'DONE') vs which were interrupted mid-encode (status = 'RUNNING' at crash time, treated as incomplete on restart). The safe rule: only chunks with status 'DONE' are skipped on resume; anything else re-encodes.
+- **Browser upload requires chunked upload, not FastAPI UploadFile:** FastAPI's built-in `UploadFile` reads the full request body — fine for small files, OOM risk for 10–100 GB video. Chunked approach: browser `File.slice()` posts 10–50 MB chunks with `Content-Range` / `X-Upload-Offset` headers; server appends to a staging file; final chunk triggers job creation. No tus dependency needed.
+- **Bulk-clear and delete require cascade:** The SQLite schema has `steps`, `chunks`, and `logs` related to `jobs` by foreign key. Delete must cascade or rows orphan. Verify `PRAGMA foreign_keys = ON` is set in the `get_db()` context manager (currently it is not — must be added).
+- **Dark mode CSS readiness:** The existing app uses CSS custom properties (`var(--bg)`, `var(--txt-2)`, `var(--border)`, etc.) already. Dark mode toggle only needs to swap a `data-theme` attribute and define a `[data-theme="light"]` override block. This is a LOW effort change given the existing architecture.
 
 ---
 
-## MVP Recommendation
+## MVP Definition for v1.1
 
-Prioritize these for first working release:
+This is a subsequent milestone. "MVP" = minimum to deliver the milestone's stated goals.
 
-1. **Global defaults** — VMAF range, CRF bounds, audio codec; stored in config file; editable via UI settings page
-2. **Add job by file path** — typed path entry, validated server-side; creates queue entry with defaults applied
-3. **Job queue list** — shows queued, running, done, failed status; pause/resume queue; cancel individual job; retry failed
-4. **Stage-by-stage progress** — named pipeline stage + stage-level percentage; updated via WebSocket/SSE
-5. **Per-chunk VMAF progress** — chunk index, current VMAF score, current CRF; live-updated during chunk encode loop
-6. **Encoding log per job** — capture FFmpeg stderr; display in expandable panel; persist on disk
+### Launch With (v1.1 core — all must ship together)
 
-Defer (Phase 2+):
+- [ ] Smart CRF oscillation resolution — zero UX complexity, pure quality correctness fix. No reason to defer.
+- [ ] Job resume from crash — reliability guarantee for long encodes. Core promise of the milestone.
+- [ ] Parallel chunk encoding — headlining performance feature. Validate with concurrency=2 default.
+- [ ] Delete individual jobs + bulk-clear completed/failed — basic hygiene that's been missing since v1.0.
+- [ ] History view (completed jobs separated from active queue) — pairs with delete; required for the queue to stay usable.
 
-- **Watch folder** — useful but not needed for initial validation; adds background polling complexity
-- **Browser file upload** — lower priority than path entry for a local/NAS tool; add after core pipeline is stable
-- **Server-side folder browse** — convenience feature; path entry covers the core need
-- **VMAF score history visualization** — build the data model in MVP; chart/table rendering is Phase 2
-- **Disk space warnings** — important but not blocking; add after core pipeline works
-- **Estimated time remaining** — requires baseline data from completed jobs to estimate accurately
-- **Dark mode** — cosmetic; implement when UI is otherwise complete
+### Add in v1.1 (polish and extended input)
+
+- [ ] VMAF score history chart — high diagnostic value, depends on Recharts being added.
+- [ ] CRF convergence indicator in history view — minimal effort once chart is in place.
+- [ ] Auto-cleanup with configurable retention — straightforward after history view exists.
+- [ ] Dark mode toggle — independent, low effort, good polish.
+- [ ] Server-side directory browser — reduces friction for local users; medium effort.
+
+### Defer to v1.2 (high implementation cost)
+
+- [ ] Browser file upload — chunked upload protocol is a meaningful engineering lift (new upload route, staging dir management, frontend upload widget, progress display, error recovery). Delivers value primarily for remote-access use cases. Defer until remote access is validated as a real user need.
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Smart CRF oscillation resolution | HIGH | LOW | P1 |
+| Job resume from crash | HIGH | HIGH | P1 |
+| Parallel chunk encoding | HIGH | HIGH | P1 |
+| Delete individual jobs | HIGH | LOW | P1 |
+| Bulk-clear completed / failed jobs | HIGH | LOW | P1 |
+| History view (active vs completed) | HIGH | MEDIUM | P1 |
+| VMAF score history chart | MEDIUM | MEDIUM | P2 |
+| CRF convergence indicator in history | MEDIUM | LOW | P2 |
+| Auto-cleanup with retention setting | MEDIUM | LOW | P2 |
+| Dark mode toggle | MEDIUM | LOW | P2 |
+| Server-side directory browser | MEDIUM | MEDIUM | P2 |
+| Browser file upload | MEDIUM | HIGH | P3 |
+
+**Priority key:**
+- P1: Must ship in v1.1 — core milestone deliverable
+- P2: Should ship in v1.1 — polish and extended input; defer to v1.2 if capacity is tight
+- P3: Future consideration — high cost relative to value for this user base
+
+---
+
+## Complexity Deep-Dives
+
+### Parallel Chunk Encoding
+
+The existing `Scheduler` is intentionally serial (`ThreadPoolExecutor(max_workers=1)`). The serial boundary is correct at the job level — no parallel jobs. The change is inside `pipeline.py`: the inner chunk encode loop currently processes chunks sequentially. Replace with `asyncio.gather` (or equivalent) with a `Semaphore(N)` gate.
+
+Key constraints:
+- Each chunk encode is a subprocess (ffmpeg). On Windows, subprocess management is via `ThreadPoolExecutor` threads (existing pattern). Parallel chunks = multiple concurrent threads, each running a subprocess.
+- Memory pressure: VMAF scoring reads FFV1 source frames per chunk. With 4 parallel chunks, RAM can spike significantly on large sources. Default concurrency of 2 is conservative and safe for most machines.
+- Progress reporting: SSE `chunk_complete` events are already per-chunk. Out-of-order events are safe — the frontend ChunkTable keyed on `chunkIndex` handles them correctly.
+- ETA recalculation: current formula is `(elapsed / chunks_done) * chunks_remaining`. With parallelism, use `(elapsed / chunks_done) * chunks_remaining / concurrency_limit` as an approximation.
+
+**Confidence:** HIGH — pattern is well-established (asyncio.Semaphore), existing codebase is structurally ready.
+
+### Job Resume from Crash
+
+The DB already supports this:
+- `steps` table has per-step status (PENDING, RUNNING, DONE, FAILED)
+- `recover_stale_jobs()` resets RUNNING jobs to QUEUED on startup
+- `chunks` table has per-chunk status
+
+What `pipeline.py` needs:
+- At entry: query step statuses for this job
+- For each pipeline step: if step DB status is 'DONE', skip execution
+- For chunk encoding: skip chunks where status = 'DONE' in the chunks table
+- Idempotency check for file-producing steps: FFV1 intermediate, scene CSV, chunk files, audio file — test `Path.exists()` before re-running
+
+The crash recovery path: app restarts → `recover_stale_jobs()` → RUNNING job becomes QUEUED → Scheduler picks it up → `run_pipeline()` with resume-aware logic → skips completed steps.
+
+**Confidence:** HIGH — DB schema already supports this. No schema changes needed.
+
+### Browser File Upload
+
+FastAPI's `UploadFile` is a single-request upload. For 10–100 GB video files, a chunked approach is required:
+1. Browser: `File.slice(offset, offset + chunkSize)` → POST `/api/upload/chunk` with `X-Upload-Id`, `X-Upload-Offset`, `X-Upload-Total` headers
+2. Server: append slice to staging file at offset, track received bytes
+3. Final chunk: when `offset + chunk_size >= total`, reassemble is complete → create job
+
+Simpler alternative: just increase FastAPI's max upload size and use streaming to disk. Works for moderate files (<10 GB) but blocks the request thread for large files. Not recommended.
+
+Full tus protocol (`tuspy` library) handles all edge cases but adds a significant dependency and protocol surface. Not warranted for a local-network tool.
+
+**Recommendation:** Manual slice+reassemble. Accept that browser-side upload resume (if tab closes mid-upload) is not supported in v1.1.
+
+**Confidence:** MEDIUM — implementation is clear but requires validation of memory/disk behavior at scale.
+
+### VMAF Score History Chart
+
+Data is already available in the `chunks` table (`vmaf_score` per chunk). No DB changes needed. The chart:
+- X axis: chunk index (0…N)
+- Y axis: VMAF score (scale: ~93 to 100 for typical quality targets)
+- Reference lines: `vmafMin` and `vmafMax` (horizontal dashed lines)
+- Color fill: light tint between the reference lines (the target window)
+- Data points: actual VMAF score per chunk (line with dots)
+
+Recharts is the natural choice: mature, React-native, declarative, small-ish bundle (~100 KB gzipped). The chart lives inside the expanded JobCard below or alongside the existing ChunkTable.
+
+For live display during encoding: accumulate chunk data in Zustand as `chunk_complete` SSE events arrive — already in the store. Chart updates reactively.
+
+**Confidence:** HIGH — data pipeline is already in place, library is mature.
+
+---
+
+## Competitor Feature Analysis
+
+| Feature | HandBrake | Tdarr | Our Approach |
+|---------|-----------|-------|--------------|
+| Parallel encoding | Multi-threaded within a single encode, not chunk-parallel | Worker-based parallel jobs (different files) | Semaphore-limited parallel chunks within one job |
+| VMAF targeting | No built-in feedback loop | Plugin-based | Native feedback loop: CRF adjusts until VMAF lands in window |
+| VMAF chart | Not built-in (users use external FFMetrics) | Not built-in | Native per-job chart showing chunk-by-chunk scores |
+| Job resume after crash | Restart from zero | Partial (depends on plugin) | Native: step-level checkpoint in SQLite |
+| Job history | Last session only, no persistence | Persistent history | SQLite-backed history with auto-cleanup |
+| File input | Local file picker only | Watch folder + library scan | Watch folder + path entry + directory browser + upload |
+| Delete / bulk-clear history | Yes | Yes | Yes (v1.1) |
+| Dark mode | System-follow only | Yes | Toggle (dark default, light opt-in) |
 
 ---
 
 ## Sources
 
-- Tdarr documentation and GitHub: https://docs.tdarr.io/docs/welcome/what and https://github.com/HaveAGitGat/Tdarr (MEDIUM confidence — official docs, but Tdarr features evolve rapidly)
-- Unmanic GitHub and documentation: https://github.com/Unmanic/unmanic and https://docs.unmanic.app/docs/configuration/plugins/overview/ (MEDIUM confidence — official source)
-- HandBrake queue documentation: https://handbrake.fr/docs/en/1.3.0/advanced/queue.html and https://deepwiki.com/HandBrake/HandBrake/3.1.2-main-window-and-queue-management (HIGH confidence — official docs)
-- Bitmovin blog on encoding queue priorities: https://bitmovin.com/blog/control-video-encoding-queue-priorities/ (MEDIUM confidence — vendor blog, but technically accurate)
-- FFmpeg progress reporting via `-progress` flag: https://ffmpeg.org/ffmpeg.html (HIGH confidence — official FFmpeg docs)
-- Tdarr Apprise notification plugin: https://docs.tdarr.io/docs/plugins/flow-plugins/index/tools/Apprise (MEDIUM confidence — official Tdarr docs)
-- ffdash terminal encoding dashboard with VMAF display: https://github.com/bcherb2/ffdash (LOW confidence — single independent project, useful as pattern reference)
-- Adobe Media Encoder log files: https://helpx.adobe.com/media-encoder/using/log-files.html (HIGH confidence — official Adobe docs)
-- Unmanic vs Tdarr comparison: https://www.oreateai.com/blog/unmanic-vs-tdarr-navigating-your-media-librarys-optimization-landscape/83f4bd9e5b00f265387a8e383b8ebfb0 (LOW confidence — third-party blog, limited detail)
+- Existing codebase: `src/encoder/pipeline.py`, `src/encoder/scheduler.py`, `src/encoder/db.py`, `frontend/src/components/ChunkTable.tsx`, `frontend/src/components/JobRow.tsx` — complexity assessments for pipeline features
+- [Controlling Concurrency in Python: Semaphores and Pool Workers](https://dev.to/ctrix/controlling-concurrency-in-python-semaphores-and-pool-workers-56d7) — asyncio.Semaphore pattern for parallel chunk encoding (HIGH confidence)
+- [Limit concurrency with semaphore in Python asyncio](https://rednafi.com/python/limit-concurrency-with-semaphore/) — confirmed standard pattern (HIGH confidence)
+- [How to Upload Large Video Files Efficiently Using Chunking](https://www.fastpix.io/blog/how-to-upload-large-video-files-efficiently-using-chunking) — browser upload complexity analysis (MEDIUM confidence)
+- [Optimizing online file uploads with chunking and parallel uploads](https://transloadit.com/devtips/optimizing-online-file-uploads-with-chunking-and-parallel-uploads/) — chunked upload UX requirements (MEDIUM confidence)
+- [Checkpoint-Based Recovery for Long-Running Data Transformations](https://dev3lop.com/checkpoint-based-recovery-for-long-running-data-transformations/) — job resume checkpoint patterns (MEDIUM confidence)
+- [Bulk action UX: 8 design guidelines with examples for SaaS](https://www.eleken.co/blog-posts/bulk-actions-ux) — bulk-clear UX (confirmation, undo toast) (MEDIUM confidence)
+- [The Quest for the Perfect Dark Mode](https://www.joshwcomeau.com/react/dark-mode/) — dark mode implementation with CSS variables + localStorage (HIGH confidence)
+- [Visual Quality Metrics HandBrake Issue #5857](https://github.com/HandBrake/HandBrake/issues/5857) — HandBrake lacks native VMAF chart, confirms differentiator value (HIGH confidence)
+- [Introducing VMAF percentiles for video quality measurements](https://blog.x.com/engineering/en_us/topics/infrastructure/2020/introducing-vmaf-percentiles-for-video-quality-measurements) — VMAF visualization precedents from Twitter/X (MEDIUM confidence)
+
+---
+*Feature research for: VibeCoder Video Encoder — v1.1 Quality & Manageability milestone*
+*Researched: 2026-03-17*

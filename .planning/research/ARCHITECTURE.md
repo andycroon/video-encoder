@@ -1,564 +1,490 @@
-# Architecture Patterns
+# Architecture Research
 
-**Project:** VibeCoder Video Encoder
-**Domain:** Cross-platform Python video encoding queue web application
-**Researched:** 2026-03-07
-**Overall confidence:** HIGH (core patterns verified against official docs and multiple sources)
-
----
-
-## Recommended Architecture
-
-**Pattern:** Web-Queue-Worker with embedded process supervisor
-
-This is the canonical architecture for long-running CPU/IO-bound tasks behind a web interface. The web frontend handles API and UI; a queue stores job state durably; a worker supervisor manages subprocess execution and streams events back to connected clients.
-
-No external broker (Redis, RabbitMQ) is required. SQLite with WAL mode serves as both the job store and the persistent queue. This eliminates external service dependencies and makes the application self-contained — a single `python -m videoencoder` starts everything.
-
-```
-Browser
-  |
-  | HTTP REST + SSE (progress stream)
-  v
-FastAPI Web Server (single process)
-  |-- REST endpoints: add job, pause, cancel, reorder, config
-  |-- SSE endpoints: /jobs/{id}/progress  (per-job event stream)
-  |-- Static file serving: SvelteKit or plain HTML/JS UI
-  |
-  | reads/writes
-  v
-SQLite Database (WAL mode)
-  |-- jobs table      (id, state, config, created_at, updated_at)
-  |-- steps table     (job_id, step_name, state, started_at, ended_at)
-  |-- events table    (job_id, ts, payload JSON) -- ring buffer for SSE replay
-  |
-  | polls + notifies
-  v
-Job Scheduler (asyncio background task, same process)
-  |-- Watches queue: pulls QUEUED jobs up to concurrency limit
-  |-- Respects pause/cancel signals written to DB by REST endpoints
-  |-- Spawns PipelineRunner per job
-  |
-  v
-PipelineRunner (one per active job, asyncio coroutine)
-  |-- Executes pipeline steps sequentially
-  |-- Each step runs one or more FfmpegSubprocess instances
-  |-- Writes step progress + events to DB
-  |-- Broadcasts events to SSE EventBus
-  |
-  v
-FfmpegSubprocess (thin wrapper, one per ffmpeg invocation)
-  |-- asyncio.create_subprocess_exec (cross-platform, no shell=True)
-  |-- reads -progress pipe:2 (or a temp file) for structured key=value progress
-  |-- supports graceful cancel: write 'q\n' to stdin first, then terminate()
-  |-- yields Progress objects upstream to PipelineRunner
-  |
-  v
-SSE EventBus (in-process pub/sub)
-  |-- asyncio.Queue per connected SSE client
-  |-- PipelineRunner pushes events in; SSE endpoint drains out
-  |-- Client reconnect: replays last N events from DB events table
-  |
-  v
-WatchFolder Monitor (optional, asyncio background task)
-  |-- watchdog library: cross-platform OS events (inotify/ReadDirectoryChanges)
-  |-- On new .mkv detected: POST to job queue internally
-```
+**Domain:** Video encoding pipeline web app — v1.1 feature integration
+**Researched:** 2026-03-17
+**Confidence:** HIGH (based on direct code inspection of all existing modules)
 
 ---
 
-## Component Boundaries
+## Standard Architecture
 
-### 1. FastAPI Web Server
+### System Overview
 
-**Responsibility:** HTTP API, SSE streaming, static file serving. Entry point for all user actions.
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Browser (React 19)                           │
+│                                                                      │
+│  ┌────────────┐  ┌────────────┐  ┌──────────────┐  ┌─────────────┐ │
+│  │  TopBar    │  │  JobList   │  │ HistoryList  │  │   Modals    │ │
+│  │  FilePick  │  │  JobRow    │  │ (NEW)        │  │  Profile/   │ │
+│  │  FileUpload│  │  JobCard   │  │ BulkActions  │  │  Settings   │ │
+│  │  (NEW)     │  │  VmafChart │  │ (NEW)        │  │             │ │
+│  └─────┬──────┘  └─────┬──────┘  └──────┬───────┘  └─────────────┘ │
+│        │               │                │                            │
+│  ┌─────┴───────────────┴────────────────┴──────────────────────┐    │
+│  │                  Zustand Store (jobsStore)                    │    │
+│  │  jobs[] | profiles[] | expandedJobId | theme (NEW)           │    │
+│  └──────────────────────────┬───────────────────────────────────┘    │
+│       SSE useJobStream       │    REST polling (5s interval)         │
+└──────────────────────────────┼─────────────────────────────────────┘
+                               │ HTTP /api/*
+┌──────────────────────────────┴─────────────────────────────────────┐
+│                      FastAPI (main.py)                               │
+│                                                                      │
+│  /api/jobs     /api/browse   /api/upload (NEW)   /api/profiles       │
+│  /api/settings               /api/jobs/bulk (NEW)                   │
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                   Scheduler (asyncio)                        │    │
+│  │  asyncio.Queue → ThreadPoolExecutor (1 worker currently)    │    │
+│  │  cancel_events: dict[job_id, threading.Event]               │    │
+│  └──────────────────────┬──────────────────────────────────────┘    │
+│                         │ loop.run_in_executor                       │
+│  ┌──────────────────────┴──────────────────────────────────────┐    │
+│  │                 Pipeline (sync, in thread)                   │    │
+│  │  FFV1 → SceneDetect → ChunkSplit → AudioTranscode            │    │
+│  │  → ChunkEncode (serial → PARALLEL in v1.1) → Concat → Mux   │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+│  ┌───────────┐  ┌─────────────┐  ┌────────────────────────────┐    │
+│  │ EventBus  │  │ WatchFolder │  │ db.py (aiosqlite WAL)      │    │
+│  │ (sse.py)  │  │ (watcher.py)│  │ jobs/steps/chunks/profiles │    │
+│  └───────────┘  └─────────────┘  └────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-**Communicates with:**
-- SQLite (read/write job state, config)
-- SSE EventBus (subscribe per client connection)
-- Job Scheduler (signals via DB state changes, not direct calls)
+### Component Responsibilities
 
-**Does NOT:**
-- Run subprocesses directly
-- Block on long operations (all subprocess work is in background tasks)
-
-**Boundary rule:** The web server is stateless beyond what is in SQLite. If the process restarts, it recovers by reading DB state.
+| Component | Responsibility | v1.1 Status |
+|-----------|---------------|-------------|
+| `main.py` | FastAPI routes, lifespan, static serving | MODIFY — add `/api/upload`, `/api/jobs/bulk`; `/api/browse` already exists |
+| `scheduler.py` | asyncio job queue, ThreadPoolExecutor, cancel/pause signals | MODIFY — expose loop ref for parallel chunk db writes |
+| `pipeline.py` | Full 10-step sync pipeline, CRF+VMAF loop | MODIFY — parallel chunks, resume/checkpoint, oscillation fix |
+| `db.py` | aiosqlite CRUD, WAL mode, step/chunk tracking | MODIFY — add `delete_job`, `bulk_delete_jobs`, `auto_cleanup_jobs` |
+| `sse.py` | In-process EventBus, thread-safe publish, per-job subscriber queues | NO CHANGE |
+| `ffmpeg.py` | subprocess wrapper, cancellable iterator, VMAF path escaping | NO CHANGE |
+| `watcher.py` | Watch folder polling, seen_files dedup | NO CHANGE |
+| `App.tsx` | Root layout, modal state | MODIFY — add history tab toggle, theme data attribute |
+| `JobList.tsx` | Polls REST, renders active jobs | MODIFY — filter to active statuses only |
+| `JobRow.tsx` / `JobCard.tsx` | Per-job row and expanded card | MODIFY — delete button; `VmafChart` inside expanded card |
+| `ChunkTable.tsx` | Per-chunk CRF/VMAF/passes table | MODIFY — stronger convergence color thresholds |
+| `jobsStore.ts` | Zustand store, SSE event reducer | MODIFY — add `theme`, `removeJob`, `removeJobsByStatus` |
+| `types/index.ts` | TypeScript interfaces | MODIFY — extend `Job` or add `convergence_status` to `ChunkData` |
+| `TopBar.tsx` | File path input, profile picker, Add Job | MODIFY — upload trigger, history view toggle |
+| `FilePicker.tsx` | Directory browser modal | NO CHANGE — already integrated with `/api/browse` |
+| `SettingsModal.tsx` | Global settings form | MODIFY — add concurrency and auto-cleanup fields |
 
 ---
 
-### 2. SQLite Database (WAL mode)
+## Recommended Project Structure
 
-**Responsibility:** Durable job state, pipeline step state, configuration, event replay buffer.
+```
+src/encoder/
+├── main.py           # MODIFY: add /upload, /jobs/bulk endpoints
+├── pipeline.py       # MODIFY: parallel chunks, resume, oscillation fix
+├── scheduler.py      # MODIFY: pass loop ref for cross-thread db writes
+├── db.py             # MODIFY: delete_job, bulk_delete, auto_cleanup
+├── sse.py            # no change
+├── ffmpeg.py         # no change
+└── watcher.py        # no change
 
-**Schema sketch:**
-
-```sql
-CREATE TABLE jobs (
-    id          TEXT PRIMARY KEY,       -- UUID
-    input_path  TEXT NOT NULL,
-    output_path TEXT NOT NULL,
-    config_json TEXT NOT NULL,          -- VMAF targets, CRF bounds, audio codec
-    state       TEXT NOT NULL,          -- QUEUED | RUNNING | PAUSED | DONE | FAILED | CANCELLED
-    priority    INTEGER DEFAULT 0,      -- higher = sooner
-    created_at  REAL NOT NULL,
-    updated_at  REAL NOT NULL,
-    error_msg   TEXT
-);
-
-CREATE TABLE steps (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id      TEXT NOT NULL REFERENCES jobs(id),
-    step_name   TEXT NOT NULL,          -- ffv1_encode | scene_detect | split | audio | chunk_encode | vmaf | concat | mux | cleanup
-    state       TEXT NOT NULL,          -- PENDING | RUNNING | DONE | FAILED | SKIPPED
-    chunk_index INTEGER,                -- NULL for non-chunk steps; chunk number for per-chunk steps
-    crf_used    REAL,
-    vmaf_score  REAL,
-    started_at  REAL,
-    ended_at    REAL
-);
-
-CREATE TABLE events (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id      TEXT NOT NULL REFERENCES jobs(id),
-    ts          REAL NOT NULL,
-    event_type  TEXT NOT NULL,          -- progress | state_change | error | log
-    payload     TEXT NOT NULL           -- JSON
-);
--- Keep last 500 events per job (prune on insert via trigger or app logic)
+frontend/src/
+├── App.tsx                     # MODIFY: history tab, theme data attr
+├── components/
+│   ├── TopBar.tsx               # MODIFY: upload button, history toggle
+│   ├── JobList.tsx              # MODIFY: filter to active statuses
+│   ├── JobRow.tsx               # MODIFY: delete button for terminal jobs
+│   ├── JobCard.tsx              # MODIFY: add VmafChart
+│   ├── ChunkTable.tsx           # MODIFY: convergence color thresholds
+│   ├── SettingsModal.tsx        # MODIFY: concurrency + cleanup settings
+│   ├── StageList.tsx            # no change
+│   ├── LogPanel.tsx             # no change
+│   ├── FilePicker.tsx           # no change
+│   ├── ProfileModal.tsx         # no change
+│   ├── CancelDialog.tsx         # no change
+│   ├── StatusBadge.tsx          # no change
+│   ├── VmafChart.tsx            # NEW: line chart vmaf vs chunk_index
+│   ├── HistoryList.tsx          # NEW: DONE/FAILED/CANCELLED view
+│   ├── FileUpload.tsx           # NEW: multipart upload to /api/upload
+│   ├── ThemeToggle.tsx          # NEW: localStorage + data-theme toggle
+│   └── BulkActions.tsx          # NEW: "Clear completed" / "Clear failed"
+├── store/
+│   └── jobsStore.ts             # MODIFY: removeJob, theme field
+├── types/
+│   └── index.ts                 # MODIFY: extend ChunkData, Job
+├── api/
+│   ├── jobs.ts                  # MODIFY: add deleteJob, bulkDelete
+│   ├── settings.ts              # no change
+│   ├── browse.ts                # no change
+│   └── profiles.ts              # no change
+└── hooks/
+    └── useJobStream.ts          # no change
 ```
 
-**WAL mode configuration (applied on connection open):**
+### Structure Rationale
+
+- **New components in `components/`:** All five new components are UI-only with no shared logic between them. No new subdirectories needed.
+- **No new backend modules:** All backend changes are surgical modifications to existing files. A `cleanup.py` or `uploads.py` module is not warranted — the logic is small enough to live in `db.py` and `main.py`.
+- **No schema migration file:** `init_db` uses `ALTER TABLE ... IF NOT EXISTS` guards (already established pattern in `db.py` lines 86-94). New columns added the same way.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: Parallel Chunk Encoding with ThreadPoolExecutor
+
+**What:** The serial `for i, chunk_in in enumerate(chunks)` loop in `pipeline.py` becomes a `ThreadPoolExecutor` dispatch. Each worker calls `_encode_chunk_with_vmaf` (already synchronous) in its own thread.
+
+**When to use:** After ChunkSplit completes — the full chunk list is known and all inputs exist.
+
+**Trade-offs:** N workers = N simultaneous ffmpeg processes. At N=2 on a workstation this is safe. At N=4+ it can saturate CPU and push VMAF scoring time up due to contention. Default of 2.
+
+**Windows constraint (critical):** The pipeline runs in a `ThreadPoolExecutor` thread that creates its own `asyncio` event loop (`_run_pipeline_sync` in `scheduler.py`). The chunk sub-threads cannot call `await` directly. The `db.py` functions are all async (aiosqlite). Two clean options:
+
+Option A — `asyncio.run_coroutine_threadsafe` to post DB writes back to the pipeline thread's loop:
 ```python
-conn.execute("PRAGMA journal_mode=WAL")
-conn.execute("PRAGMA synchronous=NORMAL")
-conn.execute("PRAGMA busy_timeout=5000")
+# Inside each chunk worker thread:
+future = asyncio.run_coroutine_threadsafe(
+    update_chunk(db_path, chunk_id, ...),
+    loop=pipeline_loop  # passed in from run_pipeline
+)
+future.result()  # block until done
 ```
 
-**Concurrency model:** Single writer at a time (DB-level lock). The Job Scheduler owns all writes from PipelineRunner coroutines via an asyncio lock + dedicated writer thread pattern. REST endpoints do their own writes (job creation, pause/cancel state changes) — these are short transactions. WAL mode allows concurrent reads during writes.
+Option B — use `sqlite3` (synchronous) directly inside the chunk worker, bypassing aiosqlite for chunk writes only. Simpler but diverges from the existing db.py API.
 
----
-
-### 3. Job Scheduler
-
-**Responsibility:** Pull QUEUED jobs from DB and dispatch to PipelineRunner. Enforce concurrency limit (default: 1 job at a time — encoding is CPU-bound). Poll for pause/cancel signals.
-
-**Communicates with:**
-- SQLite (polls for QUEUED jobs, writes RUNNING state)
-- PipelineRunner (spawns as asyncio task)
-
-**Implementation:** An asyncio background task started at server startup via FastAPI lifespan. Uses `asyncio.sleep(1)` polling loop or SQLite change notification via a lightweight asyncio queue that REST endpoints push to when state changes.
-
-**Pause/Cancel flow:**
-- REST endpoint writes `state=PAUSED` or `state=CANCELLED` to DB.
-- Scheduler polls DB periodically (or uses in-process notification queue).
-- PipelineRunner checks a cancellation flag before each pipeline step; for mid-step cancellation, calls `FfmpegSubprocess.cancel()`.
-- No cross-process signaling needed — everything is in one Python process.
-
----
-
-### 4. PipelineRunner
-
-**Responsibility:** Execute all 10 pipeline steps for one job sequentially. Manage the CRF feedback loop per chunk. Report progress to EventBus and DB.
-
-**Communicates with:**
-- FfmpegSubprocess (awaits one or more per step)
-- SQLite (writes step state, VMAF scores, CRF used)
-- SSE EventBus (pushes progress events)
-- Job Scheduler (signals via asyncio.Event or return value)
-
-**Pipeline step mapping:**
-
-```
-Step 1:  ffv1_encode       -- FfmpegSubprocess: source.mkv → temp/ffv1.mov
-Step 2:  scene_detect      -- Python call: scenedetect API (not subprocess, Python lib)
-Step 3:  split             -- FfmpegSubprocess per scene: temp/ffv1.mov → chunks/chunk_N.mov
-Step 4:  audio             -- FfmpegSubprocess: source → FLAC → target codec
-Step 5+: chunk_encode      -- FfmpegSubprocess: chunk_N.mov → encoded/chunk_N.mp4 (CRF loop)
-Step 6:  vmaf_score        -- FfmpegSubprocess with libvmaf: per chunk
-Step 7:  crf_feedback      -- Loop: if VMAF out of range, adjust CRF ±1, re-run step 5+6
-Step 8:  concat            -- FfmpegSubprocess: concat list → temp/concat.mp4
-Step 9:  mux               -- FfmpegSubprocess: concat.mp4 + audio → final.mkv
-Step 10: cleanup           -- Python: shutil.rmtree on temp dirs
-```
-
-**CRF feedback loop implementation:**
-```python
-async def encode_chunk_with_vmaf(chunk, config, cancel_event):
-    crf = config.crf_start
-    while True:
-        await ffmpeg_encode_chunk(chunk, crf, cancel_event)
-        vmaf = await ffmpeg_vmaf_score(chunk, cancel_event)
-        if config.vmaf_min <= vmaf <= config.vmaf_max:
-            break
-        if vmaf < config.vmaf_min and crf > config.crf_min:
-            crf -= 1
-        elif vmaf > config.vmaf_max and crf < config.crf_max:
-            crf += 1
-        else:
-            break  # Hit CRF bounds, accept result
-    return crf, vmaf
-```
-
-**Parallelism decision:** Steps 5-6 (per-chunk encode + VMAF) are independent across chunks. Running them in parallel is possible (`asyncio.gather`) but trades predictable progress reporting for throughput. Recommended default: sequential chunk processing for simpler cancellation and progress tracking. Make parallelism a later configurable option.
-
----
-
-### 5. FfmpegSubprocess
-
-**Responsibility:** Spawn a single ffmpeg invocation, parse progress output, support cancellation.
-
-**Communicates with:**
-- OS process (via asyncio subprocess)
-- PipelineRunner (yields progress updates, raises on failure)
-
-**Cross-platform subprocess pattern:**
+**Recommendation:** Option A. Pass `asyncio.get_event_loop()` from `run_pipeline` down to the chunk workers. Keeps all DB access through `db.py`.
 
 ```python
-import asyncio
-import sys
+# Sketch — replaces serial for-loop in run_pipeline:
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-async def run_ffmpeg(cmd: list[str], cancel_event: asyncio.Event):
-    # On Windows: ProactorEventLoop is default in Python 3.8+, supports subprocess
-    # On Linux: SelectorEventLoop with child watcher, supports subprocess
-    # No special loop configuration needed in Python 3.10+
+max_workers = config.get("max_parallel_chunks", 2)
+pipeline_loop = asyncio.get_event_loop()
 
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        stdin=asyncio.subprocess.PIPE,
+def encode_one(args):
+    i, chunk_in, chunk_out, chunk_id = args
+    crf, vmaf, iters = _encode_chunk_with_vmaf(
+        chunk_in, chunk_out, config, cancel_event, f"Chunk {i}/{total}", on_progress=_log
     )
-    # read stderr line by line for progress; -progress pipe:2 writes key=value there
-    ...
+    asyncio.run_coroutine_threadsafe(
+        update_chunk(db_path, chunk_id, crf_used=float(crf), vmaf_score=vmaf,
+                     iterations=iters, status="DONE"),
+        pipeline_loop
+    ).result()
+    return (i, crf, vmaf, iters)
+
+with ThreadPoolExecutor(max_workers=max_workers) as pool:
+    futures = [pool.submit(encode_one, (i, chunk_in, chunk_out, chunk_id))
+               for i, (chunk_in, chunk_out, chunk_id) in enumerate(chunk_tasks)]
+    for future in as_completed(futures):
+        i, crf, vmaf, iters = future.result()
+        # emit SSE chunk_complete from main pipeline thread
 ```
 
-**FFmpeg progress parsing:** Use `-progress pipe:2` (stderr) to get machine-readable key=value lines:
-- `frame=N` — frames encoded
-- `fps=N` — encoding fps
-- `out_time_ms=N` — microseconds encoded so far
-- `total_size=N` — output bytes
-- `progress=continue|end` — sentinel
+### Pattern 2: Checkpoint-Based Resume
 
-Parse by reading stderr line by line in an asyncio reader loop. Convert `out_time_ms` to percentage using source duration (obtained via `ffprobe` at job start).
+**What:** Before each pipeline step, check whether a `DONE` step row already exists in `steps` for this `job_id` + `step_name`. If yes, skip the encode body and verify the output file exists.
 
-Alternatively use `ffmpeg-progress-yield` (PyPI, Python >=3.9, actively maintained as of Feb 2026) which handles the parsing and yields percentage floats — good for simpler steps. For full control and the VMAF loop, raw parsing is preferred.
+**When to use:** At the top of `run_pipeline`, fetch all existing steps for the job once. Use a `completed_steps: set[str]` for O(1) lookup at each step gate.
 
-**Cancellation (cross-platform):**
+**Trade-offs:** Adds one DB read at pipeline start. Step skipping is idempotent — running twice on a fresh job (no prior steps) produces identical behaviour.
 
 ```python
-async def cancel(self):
-    if self.proc and self.proc.returncode is None:
-        try:
-            # FFmpeg respects 'q' on stdin for graceful stop (saves partial output)
-            self.proc.stdin.write(b'q')
-            await self.proc.stdin.drain()
-            await asyncio.wait_for(self.proc.wait(), timeout=5.0)
-        except (asyncio.TimeoutError, Exception):
-            pass
-        finally:
-            if self.proc.returncode is None:
-                self.proc.terminate()  # SIGTERM on Linux, TerminateProcess on Windows
+# At top of run_pipeline, after status update to RUNNING:
+existing = await get_steps(db_path, job_id)
+completed_steps = {s["step_name"] for s in existing if s["status"] == "DONE"}
+
+# Then at each step gate:
+if "FFV1" not in completed_steps:
+    step_id = await create_step(db_path, job_id, "FFV1")
+    _ffv1_encode(source_path, intermediate, cancel_event, on_progress=_log)
+    await update_step(db_path, step_id, "DONE")
+else:
+    _log("[FFV1] Skipping — checkpoint found")
+    # Verify output file exists; if not, re-run step regardless
+    if not intermediate.exists():
+        completed_steps.discard("FFV1")
+        # fall through to encode
 ```
 
-**Windows-specific note:** `subprocess.Popen.terminate()` on Windows calls `TerminateProcess()` — immediate, no SIGTERM. The stdin 'q' approach gives ffmpeg a chance to flush partial output cleanly before forced termination, which works cross-platform.
+**File guard is mandatory:** If `temp/job_{id}/` was manually deleted between runs, the DB says DONE but the file is gone. Always check `Path.exists()` before skipping.
 
----
+**Chunk resume detail:** The ChunkEncode step is one DB step covering many chunks. For resume after partial chunk encoding, check the `chunks` table for `status='DONE'` rows per `chunk_index`. Skip encoding for done chunks; encode only the remainder.
 
-### 6. SSE EventBus
+### Pattern 3: Smart CRF Oscillation Resolution
 
-**Responsibility:** In-process pub/sub for streaming progress from PipelineRunner to browser clients. No external broker.
+**What:** Replace the `visited_crfs: set[int]` tracker in `_encode_chunk_with_vmaf` with a `history: list[tuple[int, float]]` of `(crf, vmaf)` pairs. On oscillation exit, select the `(crf, vmaf)` whose VMAF is closest to the window midpoint. If that CRF differs from the last encoded, do one final re-encode.
 
-**Communicates with:**
-- PipelineRunner (subscribes per job, pushes events)
-- FastAPI SSE endpoint (drains per client connection)
-
-**Implementation:**
+**When to use:** Only triggered when `crf in visited_crfs` — same condition as before, no behaviour change for well-converging chunks.
 
 ```python
-class EventBus:
-    def __init__(self):
-        # job_id -> list of asyncio.Queue (one per connected SSE client)
-        self._subscribers: dict[str, list[asyncio.Queue]] = {}
+# Replace:
+visited_crfs: set[int] = set()
+best_crf, best_vmaf = crf, 0.0
 
-    def subscribe(self, job_id: str) -> asyncio.Queue:
-        q = asyncio.Queue(maxsize=100)
-        self._subscribers.setdefault(job_id, []).append(q)
-        return q
+# With:
+history: list[tuple[int, float]] = []  # (crf, vmaf)
 
-    def unsubscribe(self, job_id: str, q: asyncio.Queue):
-        if job_id in self._subscribers:
-            self._subscribers[job_id].discard(q)
+# After each encode+score:
+history.append((crf, vmaf))
 
-    async def publish(self, job_id: str, event: dict):
-        for q in self._subscribers.get(job_id, []):
-            try:
-                q.put_nowait(event)
-            except asyncio.QueueFull:
-                pass  # slow client — drop rather than block
+# On oscillation exit:
+target_vmaf = (vmaf_min + vmaf_max) / 2.0
+best_crf, best_vmaf = min(history, key=lambda h: abs(h[1] - target_vmaf))
+# If best_crf is not the last encoded CRF, do one more encode at best_crf
+if best_crf != crf:
+    _encode_chunk_x264(chunk_path, encoded_path, best_crf, config, cancel_event=cancel_event)
+    best_vmaf = _vmaf_score(encoded_path, chunk_path)
 ```
 
-**SSE endpoint pattern:**
+**No schema changes, no API changes, no frontend changes.** This is a self-contained fix.
 
-```python
-from fastapi.responses import StreamingResponse
+### Pattern 4: History View via Status Filtering
 
-@app.get("/jobs/{job_id}/progress")
-async def job_progress(job_id: str, request: Request):
-    q = event_bus.subscribe(job_id)
-    # Replay last N events from DB for reconnecting clients
-    recent = db.get_recent_events(job_id, limit=50)
+**What:** The existing `jobs[]` array in Zustand contains all jobs regardless of status. The active queue view filters to `['QUEUED', 'RUNNING', 'PAUSED']`. The history view filters to `['DONE', 'FAILED', 'CANCELLED']` from the same array.
 
-    async def generate():
-        try:
-            for ev in recent:
-                yield f"data: {json.dumps(ev)}\n\n"
-            while not await request.is_disconnected():
-                try:
-                    event = await asyncio.wait_for(q.get(), timeout=15.0)
-                    yield f"data: {json.dumps(event)}\n\n"
-                except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"  # prevent proxy timeout
-        finally:
-            event_bus.unsubscribe(job_id, q)
+**When to use:** Do not create a separate history store or a second polling interval. One store, one polling loop, two filtered views.
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
-```
+**Trade-offs:** The 5-second poll fetches all jobs every cycle. For large histories (100+ DONE jobs), this grows. Mitigation: the active queue view polls `/api/jobs?status=QUEUED` (comma-separated status filter) while the history view does a one-time fetch on mount plus manual refresh button.
 
-SSE is chosen over WebSockets for progress streaming because it is unidirectional (server-to-client), has automatic browser reconnect, works through most proxies, and requires no special client library. Control actions (pause, cancel) go through regular REST endpoints.
+### Pattern 5: Dark Mode via CSS Custom Properties + localStorage
 
----
+**What:** All existing colour values already use `var(--bg)`, `var(--txt)`, `var(--panel)`, etc. Add `[data-theme="light"]` overrides to `index.css`. Apply `document.documentElement.dataset.theme = 'light' | 'dark'` from `ThemeToggle`. Persist in `localStorage`.
 
-### 7. WatchFolder Monitor
+**When to use:** On app mount read `localStorage.getItem('theme')` and apply. Toggle button swaps and re-persists.
 
-**Responsibility:** Detect new .mkv files dropped into a configured input directory and auto-enqueue them.
-
-**Communicates with:**
-- Filesystem (via watchdog Observer)
-- SQLite / Job Scheduler (creates new job entries)
-
-**Implementation:**
-
-```python
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, FileCreatedEvent
-
-class IngestHandler(FileSystemEventHandler):
-    def on_created(self, event: FileCreatedEvent):
-        if not event.is_directory and event.src_path.endswith('.mkv'):
-            # Debounce: wait for file size to stabilize before enqueueing
-            asyncio.run_coroutine_threadsafe(
-                enqueue_job(event.src_path),
-                loop=main_event_loop
-            )
-```
-
-**Cross-platform note:** watchdog uses `inotify` on Linux and `ReadDirectoryChangesW` on Windows automatically. No platform-specific code needed. The `asyncio.run_coroutine_threadsafe` call bridges watchdog's threads to the asyncio event loop.
-
-**Debounce pattern:** Large MKV files take time to copy. Check file size stability before enqueueing: poll size at T=0 and T+2s; if equal, file is ready. This prevents processing an incomplete file.
+**No Zustand involvement needed:** `localStorage` is the source of truth. No server round-trip. The theme applies before React renders — no flash of wrong theme if applied in a `<script>` tag before the bundle loads, or in a `useLayoutEffect` in `App.tsx`.
 
 ---
 
 ## Data Flow
 
-### Job Submission (file path)
-
+### Parallel Chunk Encode Flow (modified)
 ```
-User types path → POST /jobs → FastAPI validates path exists → INSERT jobs (QUEUED) → 200 OK
-Scheduler poll → finds QUEUED job → UPDATE jobs (RUNNING) → spawn PipelineRunner
-```
-
-### Job Submission (file upload)
-
-```
-Browser → multipart POST /upload → FastAPI streams to configured upload dir →
-INSERT jobs (QUEUED) with saved path → 200 OK with job_id → same as above
+ChunkEncode step begins in pipeline thread
+    → ThreadPoolExecutor(max_workers=N) dispatches chunk tasks
+    → N worker threads each call _encode_chunk_with_vmaf concurrently
+    → Encode → VMAF score → CRF adjust loop (fully synchronous per thread)
+    → On completion: asyncio.run_coroutine_threadsafe(update_chunk(...), loop)
+    → SSE chunk_complete event emitted from main pipeline thread after each result
+    → chunk_complete events arrive unordered by chunk_index (expected)
+    → Frontend: keyed on chunkIndex in Zustand — handles out-of-order correctly
 ```
 
-### Progress streaming
-
+### Resume Flow (new)
 ```
-PipelineRunner step starts → FfmpegSubprocess reads stderr line by line →
-parse key=value → yield Progress → PipelineRunner builds event dict →
-EventBus.publish(job_id, event) → asyncio.Queue per SSE client →
-SSE generate() yields "data: {...}\n\n" → Browser EventSource receives →
-UI updates progress bar / VMAF score / CRF display
-```
-
-### Cancel flow
-
-```
-User clicks Cancel → DELETE /jobs/{id} →
-FastAPI: UPDATE jobs SET state=CANCELLED →
-notify scheduler via in-process asyncio.Event or Queue →
-Scheduler: set cancel_event for that job's PipelineRunner →
-PipelineRunner: checks cancel_event between steps →
-FfmpegSubprocess.cancel(): stdin 'q' → terminate() →
-PipelineRunner: UPDATE jobs SET state=CANCELLED, cleanup temp files
+App restarts → recover_stale_jobs() resets RUNNING → QUEUED (db.py)
+    → lifespan re-enqueues all QUEUED jobs (main.py)
+    → scheduler._run_job() → run_pipeline()
+    → run_pipeline queries get_steps(db_path, job_id) at entry
+    → Steps with status=DONE + output file present are skipped
+    → Pipeline continues from first incomplete step
+    → If temp dir was wiped: missing file guard forces re-run of affected steps
 ```
 
-### Pause/Resume flow
-
+### File Upload Flow (new)
 ```
-User clicks Pause → PATCH /jobs/{id} {state: PAUSED} →
-FastAPI: UPDATE jobs SET state=PAUSED →
-PipelineRunner checks flag after current step completes →
-PipelineRunner enters asyncio.Event.wait() loop (does not kill subprocess mid-step) →
-User clicks Resume → PATCH /jobs/{id} {state: RUNNING} →
-FastAPI: UPDATE jobs SET state=RUNNING, set resume_event →
-PipelineRunner wakes, continues with next step
+User selects file (FileUpload.tsx)
+    → POST /api/upload (multipart, streaming write to upload_path/)
+    → FastAPI: shutil.copyfileobj(file.file, dest) — never file.read()
+    → create_job(db_path, saved_path, config_snapshot)
+    → scheduler.enqueue(job_id)
+    → Returns Job object → upsertJob(store) → appears in JobList
 ```
 
-**Design decision:** Pause waits for the current step to finish cleanly. Mid-step pause (killing ffmpeg mid-encode) is not supported in V1 — it produces corrupt output and the re-encode cost is the same. Steps can be long (FFV1 encode of a 2h film), so this is a known limitation.
-
-### Restart recovery
-
+### Delete / History Flow (new)
 ```
-Server starts → scan jobs WHERE state IN ('RUNNING', 'QUEUED') →
-RUNNING jobs: set state=QUEUED (interrupted mid-run) →
-Scheduler picks them up and re-runs from the beginning of the failed step →
-(Optimization: track completed steps; restart from last completed step — V2 feature)
+User clicks delete on DONE/FAILED/CANCELLED job (JobRow trash button)
+    → DELETE /api/jobs/{id}
+    → db.delete_job(): DELETE chunks → DELETE steps → DELETE jobs (one transaction)
+    → Returns {deleted: id}
+    → store.removeJob(id) → job disappears from HistoryList
+
+Auto-cleanup (background asyncio task, hourly):
+    → db.auto_cleanup_jobs(max_age_hours) deletes old terminal jobs
+    → No SSE needed — next REST poll naturally drops the missing rows
+```
+
+### Bulk Delete Flow (new)
+```
+User clicks "Clear all completed" (BulkActions)
+    → DELETE /api/jobs/bulk?status=DONE
+    → db.delete_jobs_by_status("DONE")
+    → Returns {deleted: N}
+    → store.removeJobsByStatus("DONE") → HistoryList empties
 ```
 
 ---
 
-## Suggested Build Order
+## Integration Points Per Feature
 
-Build order is driven by dependency: each layer depends on the one below it.
+### 1. Parallel Chunk Encoding
 
-### Phase 1: Core Subprocess + Progress
-Build `FfmpegSubprocess` first. This is the foundation everything else depends on. Validate cross-platform subprocess spawning, `-progress pipe:2` parsing, graceful cancellation, and error handling before building anything on top.
+| Layer | Change |
+|-------|--------|
+| `db.py` | Add `max_parallel_chunks` to `SETTINGS_DEFAULTS` (default `"2"`) |
+| `pipeline.py` | Replace serial chunk for-loop with `ThreadPoolExecutor` dispatch; pass `pipeline_loop` to workers for DB writes |
+| `scheduler.py` | No change needed — pipeline still runs as single `run_in_executor` call |
+| `main.py` | No change |
+| `SettingsModal.tsx` | Add numeric input for `max_parallel_chunks` setting |
+| SSE impact | `chunk_complete` events arrive unordered; frontend already handles correctly |
 
-**Deliverable:** A CLI script that runs a single ffmpeg command and prints structured progress to stdout.
+### 2. Job Resume
 
-### Phase 2: SQLite State Layer
-Define the schema. Build the DB access layer (can use SQLAlchemy Core or raw sqlite3 + WAL pragma). Write job CRUD, step tracking, event insertion. This layer must be correct before the scheduler depends on it.
+| Layer | Change |
+|-------|--------|
+| `db.py` | No schema change; `get_steps()` already exists and returns step rows with status |
+| `pipeline.py` | Add `completed_steps` check at each step gate; file-existence guard; chunk-level resume via `chunks` table query |
+| `scheduler.py` | Allow re-enqueue of `PAUSED` status jobs (currently only `QUEUED` is accepted) |
+| `main.py` | No change; existing `/retry` already creates new job — resume is different: same job_id, same temp dir |
 
-**Deliverable:** Python module with testable DB functions, no web server yet.
+### 3. Smart CRF Oscillation
 
-### Phase 3: PipelineRunner (no web)
-Implement the 10-step pipeline using Phase 1's subprocess wrapper and Phase 2's DB layer. Build the VMAF feedback loop. Test end-to-end with a real video file from a Python script. This validates the entire encoding pipeline before adding web complexity.
+| Layer | Change |
+|-------|--------|
+| `pipeline.py` | `_encode_chunk_with_vmaf` only — replace `visited_crfs: set` with `history: list[tuple]`; add midpoint selection on oscillation exit |
+| All other layers | No change |
 
-**Deliverable:** CLI that encodes a single file end-to-end with progress logged to SQLite.
+### 4. Browser File Upload
 
-### Phase 4: FastAPI + SSE
-Add the web server. Implement REST endpoints for job CRUD (creation, pause, cancel, reorder). Implement the SSE endpoint reading from EventBus. Implement the Job Scheduler asyncio background task. Start the WatchFolder monitor.
+| Layer | Change |
+|-------|--------|
+| `db.py` | Add `upload_path` to `SETTINGS_DEFAULTS` (default `"temp/uploads"`) |
+| `main.py` | New `POST /api/upload` endpoint; streaming write; create + enqueue job |
+| `frontend/src/api/jobs.ts` | Add `uploadFile(file: File): Promise<Job>` function |
+| `FileUpload.tsx` | New component — file input or drag zone; calls `uploadFile`; `upsertJob` on success |
+| `TopBar.tsx` | Add upload trigger button |
 
-**Deliverable:** Working API with curl-testable endpoints; SSE visible in browser DevTools.
+### 5. Server-Side Directory Browser
 
-### Phase 5: Web UI
-Build the browser interface against the Phase 4 API. Queue view, per-job progress display (current step, chunk N/M, VMAF, CRF), job controls (add via path/upload/watch folder, pause, cancel, reorder).
+**Already implemented.** `/api/browse` exists in `main.py` (line 237). `FilePicker.tsx` already consumes it. No v1.1 work required.
 
-**Deliverable:** Working end-to-end application.
+### 6. Job Delete / Bulk / History / Auto-Cleanup
 
-### Phase 6: Polish + Reliability
-Restart recovery (requeue interrupted jobs). Event replay on SSE reconnect. Error handling edge cases (ffmpeg crash, disk full, missing ffprobe). Configuration persistence. Platform-specific packaging (Windows .bat / Linux systemd unit).
+| Layer | Change |
+|-------|--------|
+| `db.py` | Add `delete_job(path, job_id)`, `delete_jobs_by_status(path, status)`, `auto_cleanup_jobs(path, max_age_hours)` |
+| `db.py` | Add `auto_cleanup_hours` to `SETTINGS_DEFAULTS` (default `"0"` = disabled) |
+| `main.py` | Change `DELETE /api/jobs/{id}` semantics: terminal-state jobs → hard delete; running jobs → cancel (existing). Add `DELETE /api/jobs/bulk?status=DONE` |
+| `main.py` | Add background auto-cleanup `asyncio.create_task` in lifespan |
+| `jobsStore.ts` | Add `removeJob(id: number)` and `removeJobsByStatus(status: string)` actions |
+| `api/jobs.ts` | Add `deleteJob(id)`, `bulkDeleteJobs(status)` API functions |
+| `JobRow.tsx` | Add trash icon button for DONE/FAILED/CANCELLED jobs |
+| `HistoryList.tsx` | New — filters `jobs[]` to terminal statuses; shows bulk actions |
+| `BulkActions.tsx` | New — "Clear completed" / "Clear failed" buttons |
+| `App.tsx` | Add Queue / History tab or toggle |
 
----
+### 7. VMAF History Chart
 
-## Cross-Platform Considerations
+| Layer | Change |
+|-------|--------|
+| Backend | No change — `vmaf_score` per chunk already in DB, already returned in `job.chunks` by `list_jobs` |
+| `VmafChart.tsx` | New — receives `chunks: ChunkData[]`; renders line chart of `vmaf` vs `chunkIndex`; show target band as horizontal band |
+| `JobCard.tsx` | Add `<VmafChart chunks={job.chunks} />` below ChunkTable |
 
-| Concern | Linux | Windows | Mitigation |
-|---------|-------|---------|------------|
-| asyncio subprocess | SelectorEventLoop + child watcher | ProactorEventLoop (default Python 3.8+) | No action needed — Python 3.10+ handles automatically |
-| Process termination | SIGTERM | TerminateProcess | Use `proc.terminate()` + stdin 'q' fallback — both platforms handled |
-| File paths | forward slashes | backslashes common | Use `pathlib.Path` throughout; never string concatenation |
-| File locking (watchdog debounce) | File may still be open during copy | Same; Windows holds exclusive lock during copy | On Windows, try `open(path, 'rb')` as readiness probe; on Linux, check size stability |
-| ffmpeg binary name | `ffmpeg` | `ffmpeg.exe` | Use `shutil.which('ffmpeg')` at startup; fail fast with clear error |
-| Temp directories | `/tmp` or configured | `%TEMP%` or configured | `tempfile.gettempdir()` or user-configured path |
-| Case-sensitive paths | Yes | No (usually) | Always store paths as-entered; compare with `Path.resolve()` |
-| SQLite file locking | POSIX advisory locks | Windows mandatory locks | WAL mode reduces contention; single writer pattern eliminates conflict |
-| Line endings in ffmpeg output | LF | CR+LF possible | Use `universal_newlines=True` or read bytes and decode with `errors='replace'` |
-| Signal handling | SIGINT, SIGTERM | SIGINT only (SIGTERM = terminate) | Catch `KeyboardInterrupt` + `signal.SIGINT` for clean shutdown |
+**Chart library:** Use recharts (if already a dep) or a minimal SVG path drawn manually to avoid adding a dependency. The data is simple: one line, ~20–200 points.
 
----
+### 8. CRF Convergence Indicator
 
-## Anti-Patterns to Avoid
+| Layer | Change |
+|-------|--------|
+| `ChunkTable.tsx` | Add red color threshold at `passes >= 3` (amber already exists at `passes > 1`) |
+| Optional schema add | Add `convergence_status TEXT` column to `chunks` table to expose "oscillation" / "bounds" / "pass" status. Requires `ALTER TABLE` in `init_db` + `update_chunk` signature change + pipeline emit. Skip if visual-only is acceptable |
+| SSE | If convergence_status column added: include `convergence_status` in `chunk_complete` event and `applyEvent` case in `jobsStore.ts` |
 
-### Anti-Pattern 1: Shell=True Subprocess
-**What:** `subprocess.Popen("ffmpeg " + args, shell=True)`
-**Why bad:** Path injection risk; different shell behavior on Windows (cmd.exe) vs Linux (bash); harder to kill child processes — `terminate()` kills the shell, not ffmpeg.
-**Instead:** `asyncio.create_subprocess_exec(*cmd_list)` always. Build the command as a `list[str]`.
+### 9. Dark Mode
 
-### Anti-Pattern 2: Threading for Subprocess I/O
-**What:** Using `threading.Thread` to read subprocess stdout/stderr.
-**Why bad:** Thread-per-process doesn't scale; harder to integrate with asyncio for SSE; Windows ProactorEventLoop already handles async subprocess I/O natively.
-**Instead:** `asyncio.create_subprocess_exec` with `asyncio.StreamReader` on stdout/stderr.
-
-### Anti-Pattern 3: External Broker for Single-Server Deployment
-**What:** Adding Redis + Celery for a queue that runs one job at a time on one machine.
-**Why bad:** External dependency; harder installation; Celery's worker model doesn't map cleanly to streaming progress back to the web server; overkill for this use case.
-**Instead:** SQLite + asyncio background tasks in the same process.
-
-### Anti-Pattern 4: FastAPI BackgroundTasks for Long Jobs
-**What:** Using FastAPI's built-in `BackgroundTasks` to run encoding jobs.
-**Why bad:** BackgroundTasks has no state, no retry, no pause/cancel, no persistence. If the request completes, the task is still tied to the request lifecycle in some implementations.
-**Instead:** Custom asyncio background task started via FastAPI lifespan, with state in SQLite.
-
-### Anti-Pattern 5: Polling for Progress in the Browser
-**What:** Browser calls `GET /jobs/{id}` every second to check progress.
-**Why bad:** 1-second granularity; unnecessary DB reads under load; poor UX for fast VMAF loops.
-**Instead:** SSE endpoint with sub-second push from FfmpegSubprocess stderr reader.
-
-### Anti-Pattern 6: Storing File Content in SQLite
-**What:** Saving uploaded video bytes as BLOBs in the database.
-**Why bad:** SQLite performs poorly for large BLOBs; no streaming; defeats WAL performance.
-**Instead:** Stream uploads to disk (configured upload directory). Store only the path in DB.
-
-### Anti-Pattern 7: Hardcoded Paths
-**What:** `D:/Videos/TEMP/` or `/tmp/encode/` in source code.
-**Why bad:** Breaks cross-platform; breaks deployment flexibility.
-**Instead:** All paths from configuration (loaded from a `config.json` or env vars at startup, settable via UI).
+| Layer | Change |
+|-------|--------|
+| `index.css` | Add `[data-theme="light"]` selector block with light palette values for all CSS variables |
+| `ThemeToggle.tsx` | New — reads/writes `localStorage.theme`; sets `document.documentElement.dataset.theme` |
+| `App.tsx` | Mount `ThemeToggle` in header; apply initial theme in `useLayoutEffect` on mount |
+| `jobsStore.ts` | Optionally add `theme` field for reactive access — not required if `ThemeToggle` is self-contained |
 
 ---
 
-## Scalability Considerations
+## Recommended Build Order
 
-This application is intentionally single-server, single-user. The architecture below reflects where it sits today and where it could go.
+Dependencies drive this sequence. Each step leaves the app shippable.
 
-| Concern | At 1 user (target) | At 5-10 users | At 100+ users |
-|---------|-------------------|---------------|---------------|
-| Concurrency | 1 job at a time (CPU-bound) | Configurable N parallel jobs, limited by CPU cores | Separate worker pool, external queue |
-| DB | SQLite WAL, single writer | SQLite still fine | Postgres migration |
-| SSE clients | Unlimited (asyncio queues are cheap) | Still fine | Still fine |
-| File storage | Local disk | NFS/SMB mount | Object storage (S3) |
-| Auth | None (local tool) | HTTP Basic Auth | Proper auth layer |
+| Step | Feature | Rationale |
+|------|---------|-----------|
+| 1 | Smart CRF oscillation fix | Pure algorithm, zero risk, one function in `pipeline.py`. No dependencies. |
+| 2 | Job resume (checkpoint) | Modifies the pipeline step loop structure. Must be done before parallel chunks because both restructure the same loop. |
+| 3 | Parallel chunk encoding | Builds on step 2's restructured loop. Adds `ThreadPoolExecutor` dispatch + settings key. |
+| 4 | Job delete + bulk + history view | Backend delete functions, new REST endpoints, frontend `HistoryList`. Fully independent of pipeline changes. |
+| 5 | Auto-cleanup background task | Depends on delete functions from step 4. Two lines of lifespan code once `auto_cleanup_jobs` exists. |
+| 6 | VMAF history chart | Read-only chart over existing `job.chunks`. Pure frontend, no backend needed. |
+| 7 | CRF convergence indicator | Minor `ChunkTable` change. Optionally add `convergence_status` column if full detail wanted. |
+| 8 | Dark mode | Pure CSS + localStorage. Zero backend. No risk of breaking pipeline. |
+| 9 | Browser file upload | New FastAPI endpoint + `FileUpload.tsx`. Depends on stable create/enqueue path (established in steps 1-3). |
 
 ---
 
-## Technology Decisions
+## Anti-Patterns
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Web framework | FastAPI | Async-native; SSE support built-in; auto OpenAPI docs |
-| DB / queue | SQLite + WAL | Zero external dependencies; survives restart; adequate for 1 concurrent job |
-| Subprocess execution | `asyncio.create_subprocess_exec` | Cross-platform; integrates with asyncio event loop natively |
-| Progress parsing | FFmpeg `-progress pipe:2` + raw stderr reader | Direct, no extra library dependency; gives frame/time/fps |
-| Progress delivery | SSE (Server-Sent Events) | Unidirectional, browser auto-reconnect, no WebSocket overhead |
-| File watching | watchdog library | Cross-platform (inotify/ReadDirectoryChanges); actively maintained |
-| In-process pub/sub | asyncio.Queue per subscriber | Zero dependency; sufficient for single-server |
-| Path handling | pathlib.Path everywhere | Correct cross-platform separator handling |
+### Anti-Pattern 1: asyncio.create_subprocess_exec for Parallel Chunks
+
+**What people do:** Reach for `asyncio.gather` with `create_subprocess_exec` for parallelism inside the pipeline.
+**Why it's wrong:** The pipeline runs in a `ThreadPoolExecutor` thread with a non-main event loop. On Windows, `create_subprocess_exec` requires the ProactorEventLoop and cannot be safely created in arbitrary threads (Python restriction).
+**Do this instead:** Use `concurrent.futures.ThreadPoolExecutor` inside the pipeline thread. Each chunk worker calls `subprocess.Popen` via the existing synchronous `run_ffmpeg` interface.
+
+### Anti-Pattern 2: Storing Theme in Zustand Without localStorage Sync
+
+**What people do:** Put `theme` in Zustand and derive the CSS class from it.
+**Why it's wrong:** Zustand state resets to default on every page load — causes flash of wrong theme before hydration.
+**Do this instead:** `localStorage` is the source of truth. Apply theme in `useLayoutEffect` (or a `<script>` in `index.html`) before first paint. Zustand can mirror it for reactive components but must not own it.
+
+### Anti-Pattern 3: Inline Object Selectors in Zustand
+
+**What people do:** `const { jobs, removeJob } = useJobsStore(s => ({ jobs: s.jobs, removeJob: s.removeJob }))`.
+**Why it's wrong:** React 19 + Zustand 5 creates a new object on every render — causes infinite re-render loop (established rule in MEMORY.md).
+**Do this instead:** One `useJobsStore` call per field: `const jobs = useJobsStore(s => s.jobs)` and `const removeJob = useJobsStore(s => s.removeJob)` separately.
+
+### Anti-Pattern 4: await file.read() for Large Uploads
+
+**What people do:** `content = await file.read()` then write to disk.
+**Why it's wrong:** A 40 GB MKV loaded entirely into memory crashes the process.
+**Do this instead:** Stream-copy with `shutil.copyfileobj(file.file, dest_file, length=1024*1024)` in a `run_in_executor` call so it doesn't block the event loop.
+
+### Anti-Pattern 5: Forgetting to Cascade Delete Child Rows
+
+**What people do:** `DELETE FROM jobs WHERE id=?` and assume children vanish.
+**Why it's wrong:** SQLite foreign key cascade is disabled by default (`PRAGMA foreign_keys=OFF`). Orphaned rows in `chunks`, `steps` accumulate silently.
+**Do this instead:** In `delete_job`: delete in order within one transaction: `DELETE FROM chunks WHERE job_id=?` → `DELETE FROM steps WHERE job_id=?` → `DELETE FROM jobs WHERE id=?`.
+
+### Anti-Pattern 6: Resume Without File Existence Guard
+
+**What people do:** Check only the DB step status to decide whether to skip a step.
+**Why it's wrong:** If `temp/job_{id}/` was manually deleted, DB says DONE but the intermediate file is gone — the next step fails with a missing-input error instead of gracefully re-running.
+**Do this instead:** Before skipping a step, verify the expected output file exists at the computed path. If missing, discard the checkpoint and re-run the step.
+
+---
+
+## Scaling Considerations
+
+This is a single-user local/LAN tool. Scaling is operational, not load-based.
+
+| Concern | After v1.1 | Notes |
+|---------|-----------|-------|
+| Job history growth | Auto-cleanup with configurable TTL | `auto_cleanup_hours=0` disables |
+| Temp disk during resume | Job temp dir must survive until DONE | Cleanup is deferred; monitor disk manually |
+| Parallel encode memory | N ffmpeg processes × ~1-2 GB each | Default N=2; warn if N > 4 in UI |
+| SQLite write contention | N chunk workers + heartbeat writes simultaneously | WAL mode handles this; all writes serialized through aiosqlite connection pool |
+| Upload storage | Files accumulate in `upload_path/` unless cleaned | Auto-cleanup of uploads not in scope for v1.1 |
 
 ---
 
 ## Sources
 
-- Python asyncio subprocess documentation: https://docs.python.org/3/library/asyncio-subprocess.html
-  (HIGH confidence — official docs; confirms ProactorEventLoop default on Windows 3.8+)
-- FFmpeg `-progress` flag key=value format: https://ffmpeg.org/pipermail/ffmpeg-user/2016-July/032897.html
-  (MEDIUM confidence — mailing list; format is stable and used by many libraries)
-- ffmpeg-progress-yield library (Python >=3.9, updated Feb 2026): https://pypi.org/project/ffmpeg-progress-yield/
-  (HIGH confidence — PyPI official page, version-verified)
-- FastAPI SSE documentation: https://fastapi.tiangolo.com/tutorial/server-sent-events/
-  (HIGH confidence — official FastAPI docs)
-- SQLite WAL mode: https://sqlite.org/wal.html
-  (HIGH confidence — official SQLite docs)
-- SQLite concurrency patterns: https://charlesleifer.com/blog/going-fast-with-sqlite-and-python/
-  (MEDIUM confidence — authoritative community source, Charles Leifer = peewee author)
-- watchdog library: https://pypi.org/project/watchdog/ and https://github.com/gorakhargosh/watchdog
-  (HIGH confidence — PyPI + GitHub; cross-platform confirmed in docs)
-- Python subprocess termination cross-platform: https://docs.python.org/3/library/subprocess.html
-  (HIGH confidence — official docs; confirms terminate() behavior per OS)
-- Web-Queue-Worker pattern: https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/web-queue-worker
-  (MEDIUM confidence — authoritative pattern reference, adapted for single-server)
-- FFmpeg stdin 'q' graceful stop: https://camratus.com/blog/_Python__Graceful_stop_FFMPEG_recording_process_on_Windows-55
-  (MEDIUM confidence — community source, widely referenced pattern)
+- Direct code inspection: `src/encoder/{main,pipeline,scheduler,db,sse,ffmpeg}.py` (2026-03-17)
+- Direct code inspection: `frontend/src/{store/jobsStore,types/index,components/*}.ts(x)` (2026-03-17)
+- FastAPI UploadFile streaming docs: https://fastapi.tiangolo.com/tutorial/request-files/
+- Windows asyncio subprocess constraint: confirmed in existing `MEMORY.md` pitfalls (ThreadPoolExecutor required)
+- Zustand 5 selector rule: confirmed in `MEMORY.md` (object selectors cause infinite re-renders)
+- `asyncio.run_coroutine_threadsafe` pattern: https://docs.python.org/3/library/asyncio-task.html#asyncio.run_coroutine_threadsafe
+
+---
+*Architecture research for: VibeCoder Video Encoder v1.1*
+*Researched: 2026-03-17*

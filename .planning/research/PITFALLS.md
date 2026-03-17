@@ -1,14 +1,348 @@
 # Domain Pitfalls
 
 **Domain:** Cross-platform Python video encoding web application (ffmpeg, VMAF, PySceneDetect, WebSocket/SSE)
-**Researched:** 2026-03-07
-**Overall Confidence:** HIGH (verified against official docs, GitHub issues, and multiple sources)
+**Researched:** 2026-03-07 (v1.0) / Updated 2026-03-17 (v1.1 new features)
+**Overall Confidence:** HIGH (verified against official docs, GitHub issues, and existing codebase structure)
 
 ---
 
-## Critical Pitfalls
+## v1.1 Pitfalls — New Feature Additions
 
-These mistakes cause rewrites, data loss, or unrecoverable state.
+These pitfalls apply specifically to the v1.1 features being added to the existing
+Python + asyncio + ThreadPoolExecutor + SQLite + React 19 system.
+
+---
+
+### Pitfall N1: Parallel Chunk Encoding — Concurrency at the Wrong Level
+
+**What goes wrong:**
+The current `Scheduler` creates `ThreadPoolExecutor(max_workers=1)`. For parallel chunk encoding, the naive fix is changing that to `max_workers=N`. But `run_pipeline` is a single task submitted to the executor — it runs serially inside one thread. Raising the executor's worker count gives you multiple *jobs* running simultaneously, not multiple *chunks* within one job.
+
+**Why it happens:**
+The boundary between "job concurrency" and "chunk concurrency" is easy to confuse. The pipeline is a single long synchronous function. The `_encoder` executor is job-scoped from the caller's perspective. Developers who see `ThreadPoolExecutor(max_workers=1)` and raise the number are acting on the wrong abstraction.
+
+**How to avoid:**
+Inside `run_pipeline`, replace the serial `for i, chunk_in in enumerate(chunks)` loop with a separate `concurrent.futures.ThreadPoolExecutor` scoped to the job (not the scheduler's executor). This inner pool submits `_encode_chunk_with_vmaf` per chunk. Keep the scheduler's executor at `max_workers=1` — one job runs at a time. The inner pool's size comes from `config["parallel_chunks"]` (configurable, default 2).
+
+**Warning signs:**
+- Chunk encode step uses full CPU but all chunk timestamps are sequential with no overlap
+- Encoding throughput increases when `max_workers` is raised on the scheduler instead of inside the pipeline
+- Cancelling a job stops only one encode when N should be stopped
+
+**Phase to address:** Parallel chunk encoding
+
+---
+
+### Pitfall N2: SQLite SQLITE_BUSY Under Parallel Chunk Writes
+
+**What goes wrong:**
+When N chunk-encode threads all call `create_chunk` / `update_chunk` concurrently, they open short-lived write transactions via aiosqlite. WAL mode allows one writer at a time. The existing `_run_pipeline_sync` creates a new event loop per job — so each chunk thread also runs `asyncio.run()` in its thread, each with its own aiosqlite connection. Under parallel writes, SQLite's default busy timeout (0 ms — fail immediately) causes `sqlite3.OperationalError: database is locked` on write collisions.
+
+**Why it happens:**
+WAL mode was set up for the serial case: one writer at a time, and writes are infrequent (one per step, not per frame). Parallel chunks make writes far more concurrent. The default busy timeout is 0 ms, meaning any contention immediately raises an error.
+
+**How to avoid:**
+Add `PRAGMA busy_timeout = 5000` in `get_db()` — this makes SQLite retry for up to 5 seconds before returning SQLITE_BUSY. For typical 2–8 chunk parallelism this is sufficient; write transactions are short (a single `UPDATE` or `INSERT`). Add this to `get_db()` alongside the existing WAL and synchronous pragmas.
+
+**Warning signs:**
+- `sqlite3.OperationalError: database is locked` appears in logs during `chunk_encode` stage
+- Errors occur only when `parallel_chunks >= 2`
+- Error frequency increases with higher `parallel_chunks`
+
+**Phase to address:** Parallel chunk encoding
+
+---
+
+### Pitfall N3: Cancel Event Stops Only the Active Worker, Not All Parallel Workers
+
+**What goes wrong:**
+In serial mode, `cancel_event.is_set()` is checked at the start of each chunk iteration, and `_run_ffmpeg_cancellable` calls `proc.cancel()` on the active process. In parallel mode, N workers are all mid-encode when cancel fires. Each worker holds its own stack-local `FfmpegProcess`. Setting `cancel_event` causes each worker's next `_check_cancel` call to raise — but `_check_cancel` is only called between VMAF scoring and re-encode attempts, not inside the running ffmpeg process. The in-flight processes are not signalled until they naturally complete.
+
+**Why it happens:**
+The current cancel design assumed one ffmpeg process active at a time. Parallel mode means N processes are running simultaneously. `FfmpegProcess` handles are stack-local and not externally accessible.
+
+**How to avoid:**
+Maintain a job-scoped list of active `FfmpegProcess` objects, protected by a `threading.Lock`. When the cancel event fires (detected in the dispatcher loop, not inside each worker), iterate the list and call `.cancel()` on each. Remove handles from the list when each worker's encode completes. This ensures all N ffmpeg processes receive the graceful quit signal within milliseconds of cancellation.
+
+**Warning signs:**
+- After clicking cancel, CPU stays pinned for seconds
+- Cancel time scales linearly with `parallel_chunks` × average chunk encode time
+- Log shows "Job cancelled" but additional `[Chunk N/M]` progress lines continue appearing
+
+**Phase to address:** Parallel chunk encoding
+
+---
+
+### Pitfall N4: Job Resume Replays Already-Completed Steps
+
+**What goes wrong:**
+Resume logic reads `steps` rows for a job and re-enters the pipeline after the last DONE step. If the implementation calls `create_step` again for already-completed steps, the DB accumulates duplicate step rows. `_attach_stages` in `db.py` iterates all rows for a job — duplicates produce duplicate stage entries in the UI and incorrect `currentStage` derivation.
+
+**Why it happens:**
+`run_pipeline` calls `create_step` at the top of each step block. On resume, a developer adds a "skip if already done" check around the step *body* but leaves `create_step` outside the guard. Or the guard checks status correctly but doesn't skip the `create_step` call. The step creation and skip logic are not co-located.
+
+**How to avoid:**
+Before the pipeline loop begins, load all existing steps for the job into a `completed: set[str]` (set of `step_name` values with status DONE). Gate each step block entirely: `if "FFV1" not in completed: ...`. This includes the `create_step` call — do not create a new step row if one already exists. The FFV1 intermediate file check (does `intermediate.mov` exist?) provides a filesystem double-check but the DB is the authoritative source.
+
+**Warning signs:**
+- `SELECT count(*) FROM steps WHERE job_id=X` returns more than 8 rows after resume
+- StageList shows duplicate entries for ffv1_encode or scene_detect
+- Resumed job re-runs FFV1 encode even though the intermediate file is present and larger than the source
+
+**Phase to address:** Job resume
+
+---
+
+### Pitfall N5: Resume Trusts Filesystem Existence Instead of DB Status
+
+**What goes wrong:**
+On resume, the pipeline finds the `chunks/` directory populated with chunk files. Some chunks are fully encoded (DB shows DONE); the last one written at crash time may be truncated. The naive resume path treats "file exists" as "chunk is complete" and skips re-encoding it, producing a corrupt output.
+
+**Why it happens:**
+Filesystem and DB state diverge when a crash occurs between the file being written and `update_chunk(..., status="DONE")` being called. The last chunk file is physically on disk but its DB row is still PENDING.
+
+**How to avoid:**
+Trust the DB, not the filesystem. A chunk is complete only if its `chunks` row has `status="DONE"`. On resume, for each chunk without a DONE row, delete the corresponding output file (if it exists) and re-encode from scratch. For DONE chunks, verify the encoded file still exists on disk; if not, re-encode and update the DB row.
+
+**Warning signs:**
+- Output MKV has a visible glitch or audio desync at a specific timestamp
+- `ffmpeg` concat step fails with "Invalid data found when processing input"
+- A chunk file is present on disk but smaller than 50 KB
+
+**Phase to address:** Job resume
+
+---
+
+### Pitfall N6: Smart CRF Selection Uses Last Encode Instead of Best-Match
+
+**What goes wrong:**
+The current `_encode_chunk_with_vmaf` updates `best_crf`/`best_vmaf` on every iteration. When oscillation is detected (`crf in visited_crfs`), `best_vmaf` reflects the most recent encode — which may not be closest to the window center. The requirements say: "pick the encode whose VMAF is closest to the window center; if equidistant, prefer lower CRF." The current code does not implement this selection.
+
+**Why it happens:**
+The "best" selection feels like "keep track as you go" but the requirements require retrospective selection over the full history. The two approaches produce different results when oscillation occurs between a value above-center and one below-center.
+
+**How to avoid:**
+Accumulate a `history: list[tuple[int, float]]` of every `(crf, vmaf)` pair from every iteration. When the loop terminates (any reason: oscillation, bounds, maxiter, convergence), select the entry with `vmaf` closest to `(vmaf_min + vmaf_max) / 2`. Break ties by choosing the lower CRF. This is O(10) over max 10 entries and handles all termination modes uniformly. The convergence case (VMAF in window) does not need selection — the in-window result is already the winner.
+
+**Warning signs:**
+- Final VMAF scores consistently land at window boundaries (96.2 or 97.6) rather than near center
+- Unit test: CRF sequence [17→16→17], VMAF [96.0→97.8→96.0], window [96.2–97.6], center 96.9 → should return CRF 16 (97.8 is 0.9 from center) not CRF 17 (96.0 is 0.9 from center — equidistant, lower CRF wins)
+- The oscillation status path returns `best_vmaf` equal to the last encode's score
+
+**Phase to address:** Smart CRF oscillation
+
+---
+
+### Pitfall N7: Browser Upload Reads Entire File into Memory
+
+**What goes wrong:**
+FastAPI's `UploadFile` uses a `SpooledTemporaryFile` with a 1 MB spool threshold. For files above 1 MB (every video file ever), the upload is written to a temp file — but if the handler calls `await file.read()`, the entire file is read into RAM before being written to the destination. A 20 GB MKV will OOM the server.
+
+**Why it happens:**
+The FastAPI documentation examples use `await file.read()` for simplicity. This is appropriate for small files (images, JSON). Developers copy this pattern without recognizing that multi-GB video files are categorically different.
+
+**How to avoid:**
+Stream the upload to disk in chunks: use `aiofiles.open(dest, 'wb')` and loop `while chunk := await file.read(1024 * 1024): await f.write(chunk)`. Store uploaded files in a dedicated `uploads/` subdirectory that is separate from the per-job temp directories — `_cleanup()` wipes `temp/job_N/` but must not touch `uploads/`. Delete the upload file after the job completes successfully or after a configurable retention period.
+
+**Warning signs:**
+- Server memory usage equals source file size during upload
+- Upload endpoint returns 413 for files over the default body limit
+- Upload succeeds but file on disk is smaller than source (truncated by memory limit)
+
+**Phase to address:** Browser file upload
+
+---
+
+### Pitfall N8: Directory Browser Allows Arbitrary Filesystem Traversal
+
+**What goes wrong:**
+The existing `/api/browse` endpoint accepts an arbitrary `path` query parameter with no root restriction. A network-accessible instance (even LAN-only) exposes the full server filesystem to any client. A UI bug or malformed request can list system directories. `../` traversal in the path parameter bypasses the "only list directories that exist" check.
+
+**Why it happens:**
+The endpoint was written for local-only use where the server operator is the only user. There is no allowed-roots concept in the current implementation.
+
+**How to avoid:**
+Call `Path(path).resolve()` before any filesystem operation — this eliminates `../` traversal. Maintain a configurable `allowed_roots` list (default: all drive roots on Windows, `/` on Linux). Validate that the resolved path starts with at least one allowed root: `any(resolved.is_relative_to(root) for root in allowed_roots)`. Return HTTP 403 for paths outside the allowed roots. This is a single guard function, low complexity.
+
+**Warning signs:**
+- `GET /api/browse?path=../../../../windows/system32` returns results
+- `Path(raw_path).resolve() != Path(raw_path)` in tests (path contained `..`)
+- No root restriction in the browse handler code path
+
+**Phase to address:** Directory browser
+
+---
+
+### Pitfall N9: Deleting a Running Job Leaves Orphaned ffmpeg Processes
+
+**What goes wrong:**
+A "delete job" endpoint that removes the DB row without first stopping the pipeline leaves `_run_pipeline_sync` running in the executor thread. It holds a `job_id` reference and continues calling `update_step`, `update_chunk`, etc. Those writes update rows that no longer exist (SQLite silently accepts UPDATE/DELETE with 0 rows matched). The ffmpeg processes keep running, consuming CPU and disk indefinitely.
+
+**Why it happens:**
+DELETE semantics in REST APIs mean "remove the resource." The pipeline running in a thread is not visible at the API layer — it's a background concern. Without explicit cancellation before deletion, the two concerns are disconnected.
+
+**How to avoid:**
+The delete endpoint must: (1) call `scheduler.cancel(job_id)` to set the cancel event, (2) mark the job CANCELLED in the DB (which the pipeline will read on its next `_check_cancel` call), (3) remove the DB row only after the pipeline thread has exited. A pragmatic approach: mark the job with a `deleted=1` flag (soft delete); after the pipeline thread exits and observes the cancel, a post-cleanup callback removes the row. If hard-delete is required, at minimum do cancel + wait for status to transition out of RUNNING before deleting.
+
+**Warning signs:**
+- CPU stays at 100% after deleting a running job
+- ffmpeg processes remain visible in Task Manager after delete
+- The `encoded/` directory continues to fill after deletion
+
+**Phase to address:** Job deletion
+
+---
+
+### Pitfall N10: Cascading Delete Leaves Orphaned Steps, Chunks, and Logs
+
+**What goes wrong:**
+`DELETE FROM jobs WHERE id=?` removes only the job row. Without `PRAGMA foreign_keys = ON`, SQLite does not enforce the `REFERENCES jobs(id)` constraints on `steps`, `chunks`, and `seen_files`. The child rows remain, accumulating silently. The DB grows without bound over time; the orphaned rows can confuse resume logic on a future job with a recycled ID (SQLite auto-increment avoids this in practice, but the cleanup problem is real).
+
+**Why it happens:**
+SQLite's foreign key enforcement is **disabled by default** — it must be explicitly enabled per connection with `PRAGMA foreign_keys = ON`. This is a well-known SQLite gotcha. The existing `get_db()` does not set this pragma.
+
+**How to avoid:**
+Add `PRAGMA foreign_keys = ON` to `get_db()`. With this set, deleting a job row cascades automatically to `steps` and `chunks` (both have `REFERENCES jobs(id)`). Add `ON DELETE CASCADE` to those foreign key definitions if not already present. Verify with `DELETE FROM jobs WHERE id=1; SELECT count(*) FROM steps WHERE job_id=1;` — should return 0.
+
+**Warning signs:**
+- `SELECT count(*) FROM steps` keeps growing even after jobs are deleted
+- `SELECT count(*) FROM chunks` same
+- `PRAGMA foreign_key_list('steps')` shows no cascading action
+
+**Phase to address:** Job deletion
+
+---
+
+### Pitfall N11: Auto-Cleanup Fires During Active Encoding, Deletes Just-Completed Jobs
+
+**What goes wrong:**
+A background `asyncio.create_task` that periodically deletes DONE jobs older than N days can delete a job the user just finished watching if the interval and threshold are misconfigured (e.g., "delete DONE jobs older than 1 hour" with a 1-hour check interval). More critically, if auto-cleanup runs while the SSE stream for a just-completed job is still open, it deletes the job row before the frontend receives the `job_complete` event and can update its state.
+
+**Why it happens:**
+The cleanup interval and retention period are often set too aggressively in development ("clean up after 1 hour") and not adjusted for production. The interaction between SSE stream lifecycle (client reads `job_complete` event → closes connection) and DB row deletion timing is not considered.
+
+**How to avoid:**
+The minimum retention period should default to 24 hours and be configurable. Auto-cleanup must check `finished_at < now() - retention_period` and use `DONE` status only (not CANCELLED jobs, which users may want to review). Use `PRAGMA foreign_keys = ON` to ensure cascading deletes are safe. The SSE stream endpoint should not depend on the job row existing after the `job_complete` event is delivered — close the stream before the row can be cleaned up.
+
+**Warning signs:**
+- Job cards disappear from the UI seconds after completing
+- SSE stream returns an error event immediately after `job_complete`
+- `GET /api/jobs/{id}` returns 404 for a job that was visible 30 seconds ago
+
+**Phase to address:** Auto-cleanup
+
+---
+
+### Pitfall N12: Dark Mode Flash of Unstyled Light Mode on Load
+
+**What goes wrong:**
+If dark mode class is applied via a React `useEffect` that reads `localStorage`, the first render completes in light mode before the effect fires. On any machine where the component tree is non-trivial, this produces a visible white flash before the dark class is applied.
+
+**Why it happens:**
+`useEffect` runs after the first paint. `localStorage` is accessible in client-side React but not during server-side rendering. Even in pure Vite client builds, the render → paint → effect sequence means at least one frame is visible in light mode.
+
+**How to avoid:**
+Apply the dark class synchronously before the React bundle loads. In `index.html`, before the `<script>` tag for the Vite bundle:
+```html
+<script>
+  if (localStorage.getItem('theme') === 'dark') {
+    document.documentElement.classList.add('dark');
+  }
+</script>
+```
+The React store reads `document.documentElement.classList.contains('dark')` on mount to initialize its own state, keeping it in sync. Tailwind's `darkMode: 'class'` strategy then applies correctly without flash.
+
+**Warning signs:**
+- Brief white flash visible when loading the page with dark mode active
+- Flash is more visible on slower machines or large monitors
+- Dark mode works correctly after load but always flashes on initial navigation
+
+**Phase to address:** Dark mode
+
+---
+
+## Technical Debt Patterns (v1.1 Additions)
+
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Raise `max_workers` on scheduler executor for chunk parallelism | Trivial one-line change | Job-level concurrency instead of chunk-level; breaks cancel semantics | Never — wrong abstraction level |
+| `await file.read()` for video uploads | One-line handler | OOM on files over 1 GB | Never for video files |
+| Trust file existence for chunk resume | Simpler code path | Corrupt output on crash-mid-write | Never for encoded video files |
+| No `busy_timeout` in `get_db()` | Works in serial mode | Intermittent SQLITE_BUSY under parallel chunk writes | Acceptable in serial-only; unacceptable for parallel chunks |
+| Hard-delete job row without cancelling pipeline | Clean REST semantics | Orphaned ffmpeg processes consuming CPU indefinitely | Never |
+| Auto-cleanup retention < 1 hour | Aggressive history pruning | Users lose completed jobs before reviewing them | Never as a default |
+| Dark mode in `useEffect` | Simple React pattern | Visible flash on load | Never — use inline script instead |
+| No `PRAGMA foreign_keys = ON` | Slightly simpler `get_db()` | Orphaned steps/chunks rows after delete | Never — add it to `get_db()` |
+
+---
+
+## Integration Gotchas (v1.1 Additions)
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| SQLite + parallel chunk threads | No `busy_timeout` set | Add `PRAGMA busy_timeout=5000` to `get_db()` alongside existing WAL pragma |
+| `ThreadPoolExecutor` + parallel chunks | Submit entire pipeline to outer executor with higher `max_workers` | Use a separate inner executor scoped to the job for chunk parallelism |
+| Cancel + parallel workers | Only set the `threading.Event`; don't signal active `FfmpegProcess` objects | Maintain a registry of active `FfmpegProcess` handles; call `.cancel()` on all of them |
+| FastAPI `UploadFile` + large files | `await file.read()` buffering into RAM | Chunked `file.read(1MB)` streaming to disk via `aiofiles` |
+| SQLite cascading deletes | Default `PRAGMA foreign_keys = OFF` leaves orphan rows | Add `PRAGMA foreign_keys = ON` in `get_db()` before any delete operation |
+| Windows path in upload API response | `Path(dest)` returns backslashes | Normalize to forward slashes before returning from API |
+| Dark mode init | `useEffect` reads `localStorage` after first paint | Inline `<script>` in `index.html` before Vite bundle |
+
+---
+
+## "Looks Done But Isn't" Checklist (v1.1 Additions)
+
+- [ ] **Parallel chunk encoding:** Often missing cancel propagation to all workers — verify cancelling a running job stops all N ffmpeg processes within 3 seconds (check Task Manager on Windows)
+- [ ] **Job resume:** Often missing the "skip already-completed steps" gate — verify that resuming a job interrupted during chunk_encode does NOT re-run FFV1 encode
+- [ ] **Job resume:** Often missing corrupt chunk file detection — verify that a chunk file present on disk but not DONE in DB gets re-encoded rather than used
+- [ ] **Smart CRF:** Often returns last-encode VMAF instead of center-closest — verify with unit test: CRF oscillation [17→16→17] returns CRF 16 when window center is equidistant
+- [ ] **Browser upload:** Often OOMs on large files — verify 5 GB upload does not spike server memory above 500 MB
+- [ ] **Directory browser:** Often missing path traversal prevention — verify `GET /api/browse?path=../../../../` returns 403
+- [ ] **Job deletion (running):** Often missing cancel-before-delete — verify ffmpeg processes are gone in Task Manager after deleting a running job
+- [ ] **Job deletion (cascading):** Often missing `PRAGMA foreign_keys = ON` — verify that `SELECT count(*) FROM steps WHERE job_id=X` returns 0 after delete
+- [ ] **Auto-cleanup:** Often missing retention floor — verify a job completed 5 minutes ago is NOT deleted when auto-cleanup runs
+- [ ] **Dark mode:** Often missing inline script — verify no white flash when opening app in a fresh browser tab with dark mode active
+
+---
+
+## Recovery Strategies (v1.1 Additions)
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Parallel cancel doesn't stop all workers | MEDIUM | Add `FfmpegProcess` registry to pipeline; call `.cancel()` on all active handles |
+| SQLITE_BUSY under parallel chunks | LOW | Add `PRAGMA busy_timeout=5000` to `get_db()`; no schema change |
+| Corrupt chunk from crash | LOW | Delete chunk file + reset DB row to PENDING; pipeline re-encodes only that chunk |
+| Upload file OOM | LOW | Rewrite handler to use chunked streaming; no API contract change |
+| Orphaned ffmpeg after delete | MEDIUM | Add cancel guard to delete endpoint; optionally add `deleted_at` soft-delete column |
+| Orphaned step/chunk rows | LOW | Add `PRAGMA foreign_keys = ON` to `get_db()`; add `ON DELETE CASCADE` to schema |
+| Dark mode flash | LOW | Add 3-line inline script to `index.html` |
+
+---
+
+## Pitfall-to-Phase Mapping (v1.1)
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| N1: Chunk parallelism at wrong level | Parallel chunk encoding | Confirm chunk timestamps overlap in pipeline logs |
+| N2: SQLITE_BUSY under parallel writes | Parallel chunk encoding | Run `parallel_chunks=4`; check logs for "database is locked" |
+| N3: Cancel doesn't stop all workers | Parallel chunk encoding | Cancel a running job; verify CPU drops and processes exit within 5s |
+| N4: Resume replays completed steps | Job resume | Interrupt mid-job; restart; verify FFV1 step is skipped |
+| N5: Resume uses corrupt chunk file | Job resume | Kill process mid-chunk-write; restart; verify output is playable |
+| N6: CRF uses last instead of center-closest | Smart CRF | Unit test oscillation case with equidistant candidates |
+| N7: Upload OOM | Browser upload | Upload a 5 GB file; server memory stays below 500 MB |
+| N8: Browse path traversal | Directory browser | `GET /api/browse?path=../../../../` returns 403 |
+| N9: Delete leaves orphaned ffmpeg | Job deletion | Delete running job; check Task Manager for ffmpeg processes |
+| N10: Delete leaves orphan DB rows | Job deletion | `SELECT count(*) FROM steps WHERE job_id=X` after delete returns 0 |
+| N11: Auto-cleanup deletes recent jobs | Auto-cleanup | Job completed 5 min ago survives a cleanup run |
+| N12: Dark mode flash | Dark mode | No white flash in fresh incognito tab with dark mode active |
+
+---
+
+---
+
+## v1.0 Pitfalls — Foundation
+
+*Original research from 2026-03-07. All v1.0 pitfalls are resolved in the existing codebase.*
 
 ---
 
@@ -141,7 +475,7 @@ The correct Windows encoding requires double-escaped colons:
 
 ---
 
-## Moderate Pitfalls
+## Moderate Pitfalls (v1.0)
 
 These cause correctness bugs or reliability issues that are painful but recoverable.
 
@@ -273,7 +607,7 @@ Specific breaking changes in 0.6:
 
 ---
 
-## Minor Pitfalls
+## Minor Pitfalls (v1.0)
 
 These cause friction but are straightforward to fix.
 
@@ -352,43 +686,41 @@ These cause friction but are straightforward to fix.
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| Worker architecture | Windows asyncio event loop (C2) | Decide sync-in-thread vs async subprocess strategy before writing any worker code |
-| ffmpeg subprocess launch | Pipe deadlock (C1) | Use dedicated reader threads per pipe from the start; never use `communicate()` |
-| Job cancellation | Windows graceful kill (C3) | Use `CREATE_NEW_PROCESS_GROUP` + stdin `q\n` cancel from day one |
-| VMAF integration | Model path on Windows (C4) | Write path escaping utility and validate at startup before any other VMAF work |
-| VMAF scoring | Resolution/format mismatch (C5) | Add explicit scale+format normalization to all VMAF filter graphs |
-| Database design | Ghost jobs on restart (M1) | Add heartbeat column and startup recovery query to schema |
-| Progress reporting | Carriage return parsing (M2) | Use `-progress pipe:1 -nostats` from the start instead of stderr parsing |
-| Merge/concat step | Unsafe file names (M3) | Always use `-safe 0`; write test with space-containing paths |
-| PySceneDetect | API breaking changes (M4) | Pin version at `>=0.6.7,<0.7` and wrap in adapter |
-| WebSocket/SSE | State on reconnect (M5) | Emit current state on connect; implement heartbeat ping |
-| Temp file cleanup | Crash orphans (M6) | Store temp file list in DB at creation time; run cleanup on startup |
-| Path handling | Windows pathlib types (m1) | Establish `str()` vs `as_posix()` convention before writing any file I/O code |
-| PySceneDetect | Scene CSV parsing (m3) | Use Python API or `Start Frame` column, not timecode strings |
-| Database | SQLite blocking (m4) | Enable WAL mode in schema migration |
-| VMAF loop | Non-convergence (m5) | Add visited-CRF set and max-iteration guard from the start |
+| Parallel chunk encoding | Wrong executor level (N1) | Inner executor per job, not outer scheduler executor |
+| Parallel chunk encoding | SQLITE_BUSY (N2) | `PRAGMA busy_timeout=5000` in `get_db()` |
+| Parallel chunk encoding | Cancel only stops one worker (N3) | FfmpegProcess registry + call `.cancel()` on all active handles |
+| Job resume | Replays completed steps (N4) | Gate each step on `step_name not in completed_steps` set |
+| Job resume | Corrupt chunk file trusted (N5) | Trust DB status, not file existence |
+| Smart CRF | Returns last instead of center-closest (N6) | Accumulate full history; select by distance to window center |
+| Browser upload | OOM on large files (N7) | Chunked streaming to disk; aiofiles |
+| Directory browser | Path traversal (N8) | `Path.resolve()` + allowed_roots validation |
+| Job deletion | Orphaned ffmpeg processes (N9) | Cancel before delete |
+| Job deletion | Orphan DB rows (N10) | `PRAGMA foreign_keys = ON` in `get_db()` |
+| Auto-cleanup | Deletes recently-completed jobs (N11) | Minimum retention 24h; configurable |
+| Dark mode | Flash on load (N12) | Inline script in `index.html` before bundle |
+| Worker architecture | Windows asyncio event loop (C2) | Sync-in-thread with ThreadPoolExecutor |
+| ffmpeg subprocess launch | Pipe deadlock (C1) | Dedicated reader threads; never `communicate()` |
+| Job cancellation | Windows graceful kill (C3) | `CREATE_NEW_PROCESS_GROUP` + stdin `q\n` |
+| VMAF integration | Model path on Windows (C4) | `escape_vmaf_path()` utility |
+| VMAF scoring | Resolution/format mismatch (C5) | Explicit scale+format in filter graph |
+| Database design | Ghost jobs on restart (M1) | `heartbeat_at` column + startup recovery |
+| Database | SQLite blocking (m4) | WAL mode enabled in `get_db()` |
 
 ---
 
 ## Sources
 
+- Existing codebase: `src/encoder/scheduler.py`, `src/encoder/pipeline.py`, `src/encoder/db.py`, `src/encoder/ffmpeg.py`
+- Python `concurrent.futures` docs — cancel semantics: https://docs.python.org/3/library/concurrent.futures.html
+- SQLite WAL and busy timeout: https://www.sqlite.org/wal.html
+- SQLite foreign keys: https://www.sqlite.org/foreignkeys.html (disabled by default — must enable per connection)
+- FastAPI `UploadFile` source — `SpooledTemporaryFile` with 1 MB spool: https://github.com/encode/starlette/blob/master/starlette/datastructures.py
+- Tailwind CSS dark mode class strategy: https://tailwindcss.com/docs/dark-mode
 - Python subprocess documentation — pipe deadlock warning: https://docs.python.org/3/library/subprocess.html
 - ffmpeg-progress-yield PyPI: https://pypi.org/project/ffmpeg-progress-yield/
 - Graceful ffmpeg stop on Windows (Camratus blog): https://camratus.com/blog/_Python__Graceful_stop_FFMPEG_recording_process_on_Windows-55
 - Windows CTRL_C_EVENT process group (concourse issue): https://github.com/concourse/concourse/issues/2368
 - Netflix VMAF ffmpeg documentation: https://github.com/netflix/vmaf/blob/master/resource/doc/ffmpeg.md
 - VMAF Windows path escaping (Streaming Learning Center): https://streaminglearningcenter.com/blogs/compute-vmaf-using-ffmpeg-on-windows.html
-- VMAF Windows path escaping (FFMetrics issue): https://github.com/fifonik/FFMetrics/issues/81
-- VMAF score zero (Netflix VMAF issue #217): https://github.com/Netflix/vmaf/issues/217
-- VMAF resolution mismatch (Netflix VMAF issue #248): https://github.com/Netflix/vmaf/issues/248
 - PySceneDetect changelog: https://www.scenedetect.com/changelog/
-- PySceneDetect migration guide: https://www.scenedetect.com/docs/0.6.5/api/migration_guide.html
-- persist-queue SQLite crash recovery: https://github.com/peter-wangxu/persist-queue
-- FastAPI WebSocket disconnection issue: https://github.com/fastapi/fastapi/discussions/9031
-- FastAPI long-running background tasks: https://github.com/fastapi/fastapi/discussions/7930
-- uvicorn Windows event loop issue: https://github.com/Kludex/uvicorn/issues/1220
 - asyncio Windows subprocess support: https://docs.python.org/3/library/asyncio-platforms.html
-- ffmpeg concat unsafe file name: https://copyprogramming.com/howto/ffmpeg-concat-unsafe-file-name
-- atexit signal handler limitations: https://docs.python.org/3/library/atexit.html
-- VMAF libvmaf model path issue #465: https://github.com/Netflix/vmaf/issues/465
-- janus mixed sync/async queue: https://github.com/aio-libs/janus
