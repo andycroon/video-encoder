@@ -62,7 +62,7 @@ Source: JobRow.tsx, CancelDialog.tsx — preserve all existing button dimensions
 Heading weight is 600 (semibold). Body weight is 400 (regular). No other weights are used.
 
 Notes:
-- Tab count labels (e.g. "Queue (3)") use 13px, weight 500
+- Tab count labels (e.g. "Queue (3)") use 13px, weight 400
 - Tab active label uses weight 600
 - All file paths and VMAF/CRF values use the `.mono` class (monospace font stack)
 
@@ -125,7 +125,7 @@ New components required for this phase:
 - Left border uses `STATUS_BORDER[job.status]` (existing map — DONE = #22c55e, FAILED = #ef4444)
 
 ### Delete button (in JobRow, history variant)
-- Height 28px, padding `0 12px`, fontSize 12, fontWeight 500, borderRadius 4
+- Height 28px, padding `0 12px`, fontSize 12, fontWeight 400, borderRadius 4
 - Color: #fca5a5 (matches CancelDialog trigger text color exactly)
 - Background: #220f0f
 - Border: `1px solid #7f1d1d60`
@@ -137,7 +137,7 @@ New components required for this phase:
 - Icon: 40x40px icon box, background #220f0f, border `1px solid #7f1d1d`, contains trash SVG (16x16) in #ef4444
 - Title: 15px, weight 600, `var(--txt)`
 - Description shows the filename in monospace so the user knows exactly what is being removed
-- Buttons: [Keep] ghost + [Delete] destructive (background #b91c1c, border #991b1b, white text, weight 600)
+- Buttons: [Keep] ghost + [Delete job] destructive (background #b91c1c, border #991b1b, white text, weight 600)
 
 ### SettingsModal — Retention section (appended to existing modal)
 - New `<h3>` section heading "Retention" using the existing uppercase 10px/600 heading style
@@ -151,7 +151,7 @@ New components required for this phase:
 
 | Element | Copy |
 |---------|------|
-| Primary CTA — History tab | "Delete" (single job) |
+| Primary CTA — History tab | "Delete job" (single job) |
 | Primary CTA — Bulk clear | "Clear completed" / "Clear failed" |
 | Queue tab label | "Queue (N)" — N = count of QUEUED + RUNNING jobs |
 | History tab label | "History (N)" — N = count of DONE + FAILED jobs |
@@ -162,13 +162,13 @@ New components required for this phase:
 | Delete single job — dialog title | "Remove this job?" |
 | Delete single job — dialog description | "Remove {filename}? This will permanently delete the job record and all associated logs. This cannot be undone." |
 | Delete single job — cancel button | "Keep" |
-| Delete single job — confirm button | "Delete" |
+| Delete single job — confirm button | "Delete job" |
 | Bulk clear completed — dialog title | "Clear completed jobs?" |
 | Bulk clear completed — dialog description | "Remove all {N} completed jobs? Active and queued jobs are not affected. This cannot be undone." |
 | Bulk clear failed — dialog title | "Clear failed jobs?" |
 | Bulk clear failed — dialog description | "Remove all {N} failed jobs? Active and queued jobs are not affected. This cannot be undone." |
-| Bulk clear — cancel button | "Cancel" |
-| Bulk clear — confirm button | "Clear" |
+| Bulk clear — cancel button | "Keep jobs" |
+| Bulk clear — confirm button | "Clear all" |
 | Settings auto-cleanup label | "Auto-remove completed jobs after" |
 | Settings auto-cleanup suffix | "days" |
 | Settings auto-cleanup helper | "Set to 0 to disable. Default: 7 days." |
@@ -186,7 +186,7 @@ New components required for this phase:
 ### Delete single job
 1. User clicks [Delete] on a history row
 2. `DeleteJobDialog` opens (AlertDialog)
-3. User clicks [Delete] to confirm
+3. User clicks [Delete job] to confirm
 4. Call `DELETE /api/jobs/{id}`
 5. On 200: remove job from Zustand store via `removeJob(id)` action
 6. Row animates out (same `AnimatePresence` + `motion.div` pattern used by JobCard expand/collapse — duration 0.18s, easeInOut)
@@ -195,7 +195,7 @@ New components required for this phase:
 ### Bulk clear
 1. User clicks [Clear completed] or [Clear failed]
 2. Bulk confirmation AlertDialog opens showing exact count
-3. User clicks [Clear] to confirm
+3. User clicks [Clear all] to confirm
 4. Call `DELETE /api/jobs/bulk` with body `{ status: "DONE" }` or `{ status: "FAILED" }`
 5. On 200: remove all matching jobs from Zustand store
 6. History list re-renders; if now empty, shows History empty state
