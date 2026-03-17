@@ -137,8 +137,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Backend: PRAGMA foreign_keys, delete_job/delete_jobs_by_status/auto_cleanup_jobs in db.py, DELETE endpoints, AutoCleanup background task
-- [ ] 07-02-PLAN.md — Frontend: Queue/History tab switcher, HistoryList, DeleteJobDialog, BulkActions, SettingsModal Retention section
+- [x] 07-01-PLAN.md — Backend: PRAGMA foreign_keys, delete_job/delete_jobs_by_status/auto_cleanup_jobs in db.py, DELETE endpoints, AutoCleanup background task
+- [x] 07-02-PLAN.md — Frontend: Queue/History tab switcher, HistoryList, DeleteJobDialog, BulkActions, SettingsModal Retention section
 
 #### Phase 8: UI Enhancements
 **Goal**: Completed jobs display visual quality evidence through a VMAF chart and CRF convergence indicators, and the interface supports a dark/light theme preference that persists across sessions
@@ -167,5 +167,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 4. Web API + Scheduler | v1.0 | 4/4 | Complete | 2026-03-08 |
 | 5. React UI | v1.0 | 6/6 | Complete | 2026-03-09 |
 | 6. Pipeline Reliability | v1.1 | 3/3 | Complete | 2026-03-17 |
-| 7. Job Management | 2/2 | Complete   | 2026-03-17 | - |
+| 7. Job Management | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 8. UI Enhancements | v1.1 | 0/2 | Not started | - |

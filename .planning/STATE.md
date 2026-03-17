@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Quality & Manageability
 status: planning
-stopped_at: Checkpoint 07-02 Task 3 — awaiting human verification
-last_updated: "2026-03-17T17:11:56.414Z"
+stopped_at: Completed 07-02-PLAN.md — Phase 7 Job Management complete
+last_updated: "2026-03-17T17:30:00.000Z"
 last_activity: 2026-03-17 — v1.1 roadmap written; Phases 6-8 defined
 progress:
   total_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Every source video can be encoded to a precise VMAF quality target with zero manual intervention — queue it, watch it, get the result.
-**Current focus:** Phase 6 — Pipeline Reliability
+**Current focus:** Phase 8 — UI Enhancements
 
 ## Current Position
 
-Phase: 6 of 8 (Pipeline Reliability)
-Plan: 0 of 3 in current phase
+Phase: 8 of 8 (UI Enhancements)
+Plan: 0 of 2 in current phase
 Status: Ready to plan
-Last activity: 2026-03-17 — v1.1 roadmap written; Phases 6-8 defined
+Last activity: 2026-03-17 — Phase 7 Job Management complete (2/2 plans)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -43,8 +43,8 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 06-pipeline-reliability | 0/3 | - | - |
-| 07-job-management | 0/2 | - | - |
+| 06-pipeline-reliability | 3/3 | 15 min | 5 min |
+| 07-job-management | 2/2 | 7 min | 3.5 min |
 | 08-ui-enhancements | 0/2 | - | - |
 
 *Updated after each plan completion*
@@ -74,6 +74,7 @@ Recent decisions affecting current work:
 - [Phase 07-job-management]: DELETE /api/jobs/bulk registered before {job_id} route to prevent FastAPI parsing 'bulk' as integer (422)
 - [Phase 07-job-management]: delete_or_cancel_job always purges from DB; active jobs cancelled then deleted (not just status-updated)
 - [Phase 07-job-management]: HistoryList renders history rows inline (not via JobRow) to avoid conditional isHistory prop complexity
+- [Phase 07-job-management]: STATUS_BORDER in HistoryList uses Record<string, string> (not JobStatus) since only DONE/FAILED appear
 - [Phase 07-job-management]: Test fixtures updated to include finished_at: null to satisfy updated Job interface
 
 ### Pending Todos
@@ -88,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T17:11:51.457Z
-Stopped at: Checkpoint 07-02 Task 3 — awaiting human verification
+Last session: 2026-03-17T17:30:00.000Z
+Stopped at: Completed 07-02-PLAN.md — Phase 7 Job Management complete
 Resume file: None
