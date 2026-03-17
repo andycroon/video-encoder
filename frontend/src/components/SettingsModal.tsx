@@ -16,9 +16,13 @@ export default function SettingsModal({ open, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pickerField, setPickerField] = useState<FolderField | null>(null);
+  const [cpuCount, setCpuCount] = useState<number | null>(null);
 
   useEffect(() => {
-    if (open) getSettings().then(setSettings).catch(() => {});
+    if (open) {
+      getSettings().then(setSettings).catch(() => {});
+      fetch('/api/system').then(r => r.json()).then(d => setCpuCount(d.cpu_count)).catch(() => {});
+    }
   }, [open]);
 
   const update = (key: keyof Settings, value: string | number) => {
@@ -103,6 +107,25 @@ export default function SettingsModal({ open, onClose }: Props) {
                       {numField('CRF max', 'crf_max')}
                       {numField('VMAF min', 'vmaf_min', 0.1)}
                       {numField('VMAF max', 'vmaf_max', 0.1)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-3 font-medium">Performance</h3>
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1">Max parallel encoders</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={cpuCount ?? undefined}
+                        step={1}
+                        className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-blue-500/60 transition-colors"
+                        value={settings?.max_parallel_chunks ?? 1}
+                        onChange={e => update('max_parallel_chunks', parseInt(e.target.value) || 1)}
+                      />
+                      {cpuCount && (
+                        <p className="text-xs text-neutral-500 mt-1">{cpuCount} CPU cores available</p>
+                      )}
                     </div>
                   </div>
                 </div>

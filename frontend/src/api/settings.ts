@@ -10,6 +10,7 @@ export interface Settings {
   output_path: string;
   temp_path: string;
   watch_folder_path: string;
+  max_parallel_chunks: number;
 }
 
 export async function getSettings(): Promise<Settings> {
