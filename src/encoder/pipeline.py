@@ -349,7 +349,12 @@ def _encode_chunk_with_vmaf(
 ) -> tuple[int, float, int]:
     """Run the CRF feedback loop for a single chunk.
 
-    Returns (final_crf, final_vmaf, iterations).
+    Returns (best_crf, best_vmaf, iterations).
+
+    Oscillation resolution: selects the encode whose VMAF is closest to the
+    center of [vmaf_min, vmaf_max]. Lower CRF wins on ties (per PIPE-V2-03).
+    If the best entry was not the last file written to disk, a final re-encode
+    is performed so the output file matches the selected CRF.
     """
     crf: int = config["crf_start"]
     vmaf_min: float = config["vmaf_min"]
@@ -357,42 +362,51 @@ def _encode_chunk_with_vmaf(
     crf_min: int = config["crf_min"]
     crf_max: int = config["crf_max"]
 
-    visited_crfs: set[int] = set()
-    best_crf: int = crf
-    best_vmaf: float = 0.0
-    status: str = "pass"
+    vmaf_history: list[tuple[int, float]] = []
+    center: float = (vmaf_min + vmaf_max) / 2
 
-    for i in range(10):
+    for _i in range(10):
         _check_cancel(cancel_event)
 
         _encode_chunk_x264(chunk_path, encoded_path, crf, config, cancel_event=cancel_event, on_progress=on_progress)
         vmaf = _vmaf_score(encoded_path, chunk_path)
 
-        best_crf = crf
-        best_vmaf = vmaf
+        # Check for oscillation: if this CRF was already tried, we are cycling
+        already_tried = any(h[0] == crf for h in vmaf_history)
+        vmaf_history.append((crf, vmaf))
 
         if vmaf_min <= vmaf <= vmaf_max:
-            status = "pass"
             break
 
-        if crf in visited_crfs:
-            status = "oscillation"
+        if already_tried:
+            # Oscillation detected — pick best from history below
             break
 
-        visited_crfs.add(crf)
-
-        if vmaf < vmaf_min and crf > crf_min:
-            crf -= 1
-        elif vmaf > vmaf_max and crf < crf_max:
-            crf += 1
+        if vmaf < vmaf_min:
+            next_crf = crf - 1
+        elif vmaf > vmaf_max:
+            next_crf = crf + 1
         else:
-            status = "bounds"
             break
-    else:
-        status = "maxiter"
 
-    print(f"[{chunk_label}] CRF {best_crf} -> VMAF {best_vmaf:.2f} ({status})")
-    return (best_crf, best_vmaf, len(visited_crfs) + 1)
+        if next_crf < crf_min or next_crf > crf_max:
+            break
+
+        crf = next_crf
+
+    # Select the entry closest to the window center; lower CRF breaks ties
+    best_crf, best_vmaf = min(
+        vmaf_history,
+        key=lambda h: (abs(h[1] - center), h[0]),
+    )
+
+    # Re-encode with the winner if it was not the last file written to disk
+    if best_crf != vmaf_history[-1][0]:
+        _encode_chunk_x264(chunk_path, encoded_path, best_crf, config,
+                           cancel_event=cancel_event, on_progress=on_progress)
+
+    print(f"[{chunk_label}] CRF {best_crf} -> VMAF {best_vmaf:.2f} ({len(vmaf_history)} iter)")
+    return (best_crf, best_vmaf, len(vmaf_history))
 
 
 def _write_concat_list(encoded_chunks: list[Path], concat_list_path: Path) -> None:
