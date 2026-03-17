@@ -148,11 +148,11 @@ Plans:
   1. Expanding a completed job in the history view reveals a line chart showing the final VMAF score for each chunk in encode order, with the configured VMAF target window rendered as a shaded reference band
   2. The chunk table for a completed job shows a re-encode count per chunk (how many CRF iterations were needed), with visual differentiation between chunks that converged immediately versus those that required multiple passes
   3. A theme toggle in the top bar switches between dark and light mode; the selected theme is saved to localStorage and applied on the next page load before first paint (no flash of wrong theme)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — VmafChart.tsx (recharts LineChart + ReferenceArea over existing chunks data) + CRF convergence column in ChunkTable
-- [ ] 08-02-PLAN.md — ThemeToggle.tsx + dark mode CSS (Tailwind @custom-variant dark) + localStorage persistence in useLayoutEffect
+- [ ] 08-01-PLAN.md — VmafChart.tsx (recharts LineChart + ReferenceArea) + CRF convergence progress bar in ChunkTable + JobCard layout update
+- [ ] 08-02-PLAN.md — useTheme hook + dark/dim CSS variable overrides + flash-prevention inline script + TopBar theme toggle button
 
 ## Progress
 
