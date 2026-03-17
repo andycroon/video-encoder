@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Quality & Manageability
 status: planning
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-17T17:05:33.999Z"
+stopped_at: Checkpoint 07-02 Task 3 — awaiting human verification
+last_updated: "2026-03-17T17:11:56.414Z"
 last_activity: 2026-03-17 — v1.1 roadmap written; Phases 6-8 defined
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06-pipeline-reliability P02 | 5 min | 2 tasks | 9 files |
 | Phase 06-pipeline-reliability P03 | 7 min | 3 tasks | 5 files |
 | Phase 07-job-management P01 | 3 min | 2 tasks | 6 files |
+| Phase 07-job-management P02 | 4 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [Phase 07-job-management]: Manual child-row deletion in delete_job (schema lacks ON DELETE CASCADE; SQLite cannot ALTER CONSTRAINT)
 - [Phase 07-job-management]: DELETE /api/jobs/bulk registered before {job_id} route to prevent FastAPI parsing 'bulk' as integer (422)
 - [Phase 07-job-management]: delete_or_cancel_job always purges from DB; active jobs cancelled then deleted (not just status-updated)
+- [Phase 07-job-management]: HistoryList renders history rows inline (not via JobRow) to avoid conditional isHistory prop complexity
+- [Phase 07-job-management]: Test fixtures updated to include finished_at: null to satisfy updated Job interface
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T17:05:33.996Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-17T17:11:51.457Z
+Stopped at: Checkpoint 07-02 Task 3 — awaiting human verification
 Resume file: None
