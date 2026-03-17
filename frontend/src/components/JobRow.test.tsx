@@ -6,7 +6,7 @@ import type { Job } from '../types';
 
 const baseJob: Job = {
   id: 1, source_path: '/videos/test.mkv', status: 'RUNNING', config: {}, created_at: '',
-  log: '', currentStage: 'chunk_encode', stages: [], chunks: [], totalChunks: 12, eta: 90000,
+  finished_at: null, log: '', currentStage: 'chunk_encode', stages: [], chunks: [], totalChunks: 12, eta: 90000,
 };
 
 describe('JobRow — QUEUE-02 / QUEUE-04', () => {

@@ -11,6 +11,7 @@ export interface Settings {
   temp_path: string;
   watch_folder_path: string;
   max_parallel_chunks: number;
+  auto_cleanup_hours: number;
 }
 
 export async function getSettings(): Promise<Settings> {

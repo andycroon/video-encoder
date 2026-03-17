@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Job, Profile, ChunkData } from '../types';
+import type { Job, Profile, ChunkData, JobStatus } from '../types';
 
 interface JobsState {
   jobs: Job[];
@@ -10,6 +10,8 @@ interface JobsState {
   upsertJob: (job: Job) => void;
   setExpanded: (id: number | null) => void;
   handleSseEvent: (jobId: number, type: string, data: unknown) => void;
+  removeJob: (id: number) => void;
+  removeJobsByStatus: (status: JobStatus) => void;
 }
 
 
@@ -122,6 +124,8 @@ export const useJobsStore = create<JobsState>((set) => ({
       return { jobs: state.jobs.map(j => j.id === job.id ? { ...normalized, ...j, status: job.status } : j) };
     }),
   setExpanded: (id) => set({ expandedJobId: id }),
+  removeJob: (id) => set((state) => ({ jobs: state.jobs.filter(j => j.id !== id) })),
+  removeJobsByStatus: (status) => set((state) => ({ jobs: state.jobs.filter(j => j.status !== status) })),
   handleSseEvent: (jobId, type, data) =>
     set((state) => ({
       jobs: state.jobs.map(j => j.id === jobId ? applyEvent(j, type, data) : j),

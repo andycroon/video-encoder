@@ -40,3 +40,18 @@ export async function retryJob(id: number): Promise<Job> {
   if (!res.ok) throw new Error(`retryJob failed: ${res.status}`);
   return res.json();
 }
+
+export async function deleteJob(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/jobs/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteJob failed: ${res.status}`);
+}
+
+export async function deleteJobsBulk(status: 'DONE' | 'FAILED'): Promise<{ deleted: number }> {
+  const res = await fetch(`${BASE}/jobs/bulk`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error(`deleteJobsBulk failed: ${res.status}`);
+  return res.json();
+}

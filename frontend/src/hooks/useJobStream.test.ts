@@ -27,7 +27,7 @@ beforeEach(() => {
   (globalThis as any).EventSource = MockEventSource;
   useJobsStore.setState({ jobs: [
     { id: 1, source_path: '/test.mkv', status: 'RUNNING', config: {}, created_at: '',
-      log: '', currentStage: null, stages: [], chunks: [], totalChunks: null, eta: null }
+      finished_at: null, log: '', currentStage: null, stages: [], chunks: [], totalChunks: null, eta: null }
   ]});
 });
 

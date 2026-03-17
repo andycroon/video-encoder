@@ -1,20 +1,22 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { listJobs } from '../api/jobs';
 import { useJobsStore } from '../store/jobsStore';
 import JobRow from './JobRow';
+import HistoryList from './HistoryList';
+import BulkActions from './BulkActions';
 
 const COL: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  letterSpacing: '0.1em',
-  textTransform: 'uppercase',
-  color: 'var(--txt-3)',
-  padding: '10px 16px',
+  fontSize: 10, fontWeight: 600, letterSpacing: '0.1em',
+  textTransform: 'uppercase', color: 'var(--txt-3)', padding: '10px 16px',
 };
+
+const QUEUE_STATUSES = ['QUEUED', 'RUNNING', 'PAUSED', 'RESUMING'];
+const HISTORY_STATUSES = ['DONE', 'FAILED'];
 
 export default function JobList() {
   const jobs = useJobsStore(s => s.jobs);
   const setJobs = useJobsStore(s => s.setJobs);
+  const [activeTab, setActiveTab] = useState<'queue' | 'history'>('queue');
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -27,6 +29,7 @@ export default function JobList() {
           chunks: j.chunks ?? [],
           totalChunks: j.totalChunks ?? null,
           eta: j.eta ?? null,
+          finished_at: j.finished_at ?? null,
         }));
         setJobs(normalized as any);
       } catch {}
@@ -36,53 +39,93 @@ export default function JobList() {
     return () => clearInterval(id);
   }, [setJobs]);
 
-  if (jobs.length === 0) {
-    return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 200,
-        border: '1px dashed var(--border)',
-        borderRadius: 8,
-        gap: 8,
-      }}>
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <rect x="4" y="4" width="24" height="24" rx="4" stroke="#2a2a35" strokeWidth="1.5"/>
-          <path d="M12 16h8M16 12v8" stroke="#55555f" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-        <p style={{ color: 'var(--txt-3)', fontSize: 13, margin: 0 }}>No jobs in queue</p>
-        <p style={{ color: 'var(--txt-3)', fontSize: 12, margin: 0 }}>Browse for a source file and click Add Job</p>
-      </div>
-    );
-  }
+  const queueJobs = jobs.filter(j => QUEUE_STATUSES.includes(j.status));
+  const historyJobs = jobs.filter(j => HISTORY_STATUSES.includes(j.status));
+
+  const tabBtn = (tab: 'queue' | 'history'): React.CSSProperties => ({
+    background: 'transparent',
+    border: 'none',
+    borderBottom: activeTab === tab ? '2px solid var(--blue)' : '2px solid transparent',
+    color: activeTab === tab ? 'var(--txt)' : 'var(--txt-3)',
+    fontWeight: activeTab === tab ? 600 : 400,
+    fontSize: 13,
+    padding: '10px 16px',
+    cursor: 'pointer',
+    transition: 'color 0.12s',
+    fontFamily: 'inherit',
+  });
 
   return (
-    <div style={{
-      background: 'var(--panel)',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      overflow: 'hidden',
-    }}>
-      {/* Column headers */}
+    <div>
+      {/* Sub-nav row */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 130px 200px 160px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--bg)',
+        display: 'flex',
+        alignItems: 'center',
+        height: 44,
+        gap: 8,
+        marginBottom: 16,
       }}>
-        <span style={COL}>File</span>
-        <span style={COL}>Status</span>
-        <span style={COL}>Stage</span>
-        <span style={{ ...COL, textAlign: 'right' }}>Actions</span>
+        <button
+          style={tabBtn('queue')}
+          onClick={() => setActiveTab('queue')}
+          onMouseEnter={e => { if (activeTab !== 'queue') e.currentTarget.style.color = 'var(--txt-2)'; }}
+          onMouseLeave={e => { if (activeTab !== 'queue') e.currentTarget.style.color = 'var(--txt-3)'; }}
+        >
+          Queue ({queueJobs.length})
+        </button>
+        <button
+          style={tabBtn('history')}
+          onClick={() => setActiveTab('history')}
+          onMouseEnter={e => { if (activeTab !== 'history') e.currentTarget.style.color = 'var(--txt-2)'; }}
+          onMouseLeave={e => { if (activeTab !== 'history') e.currentTarget.style.color = 'var(--txt-3)'; }}
+        >
+          History ({historyJobs.length})
+        </button>
+
+        <div style={{ flex: 1 }} />
+
+        {activeTab === 'history' && <BulkActions historyJobs={historyJobs} />}
       </div>
 
-      {jobs.map((job, i) => (
-        <div key={job.id} style={{ borderTop: i > 0 ? '1px solid var(--border-lo)' : undefined }}>
-          <JobRow job={job} />
-        </div>
-      ))}
+      {/* Tab content */}
+      {activeTab === 'queue' ? (
+        queueJobs.length === 0 ? (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', height: 200,
+            border: '1px dashed var(--border)', borderRadius: 8, gap: 8,
+          }}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <rect x="4" y="4" width="24" height="24" rx="4" stroke="#2a2a35" strokeWidth="1.5"/>
+              <path d="M12 16h8M16 12v8" stroke="#55555f" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <p style={{ color: 'var(--txt-3)', fontSize: 13, margin: 0 }}>No jobs in queue</p>
+            <p style={{ color: 'var(--txt-3)', fontSize: 12, margin: 0 }}>Browse for a source file and click Add Job</p>
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--panel)', border: '1px solid var(--border)',
+            borderRadius: 8, overflow: 'hidden',
+          }}>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 130px 200px 160px',
+              borderBottom: '1px solid var(--border)', background: 'var(--bg)',
+            }}>
+              <span style={COL}>File</span>
+              <span style={COL}>Status</span>
+              <span style={COL}>Stage</span>
+              <span style={{ ...COL, textAlign: 'right' }}>Actions</span>
+            </div>
+            {queueJobs.map((job, i) => (
+              <div key={job.id} style={{ borderTop: i > 0 ? '1px solid var(--border-lo)' : undefined }}>
+                <JobRow job={job} />
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <HistoryList jobs={historyJobs} />
+      )}
     </div>
   );
 }

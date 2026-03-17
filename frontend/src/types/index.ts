@@ -22,6 +22,7 @@ export interface Job {
   status: JobStatus;
   config: Record<string, unknown>;
   created_at: string;
+  finished_at: string | null;
   log: string;
   // SSE-derived live state (not from REST)
   currentStage: string | null;
