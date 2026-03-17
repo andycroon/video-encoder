@@ -3,6 +3,7 @@ import useJobStream from '../hooks/useJobStream';
 import StageList from './StageList';
 import ChunkTable from './ChunkTable';
 import LogPanel from './LogPanel';
+import VmafChart from './VmafChart';
 
 interface Props { job: Job }
 
@@ -31,6 +32,9 @@ export default function JobCard({ job }: Props) {
   const avgCrf = doneChunks.length > 0
     ? doneChunks.reduce((s, c) => s + (c.crf ?? 0), 0) / doneChunks.length
     : null;
+
+  const vmafMin = (job.config.vmaf_min as number) ?? 96.2;
+  const vmafMax = (job.config.vmaf_max as number) ?? 97.6;
 
   return (
     <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
@@ -75,6 +79,9 @@ export default function JobCard({ job }: Props) {
           <ChunkTable chunks={job.chunks} />
         </div>
       </div>
+
+      {/* VMAF Chart */}
+      <VmafChart chunks={job.chunks} vmafMin={vmafMin} vmafMax={vmafMax} />
 
       {/* Log */}
       <LogPanel log={job.log} />

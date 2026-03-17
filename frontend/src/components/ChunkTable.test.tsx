@@ -23,4 +23,16 @@ describe('ChunkTable — PROG-02', () => {
     render(<ChunkTable chunks={[activeChunk]} />);
     expect(screen.getAllByText('--').length).toBeGreaterThan(0);
   });
+
+  it('renders convergence bar for each chunk', () => {
+    const multiPass: ChunkData = {
+      ...completedChunk,
+      chunkIndex: 2,
+      passes: 4,
+    };
+    render(<ChunkTable chunks={[completedChunk, multiPass]} />);
+    // Pass count numbers should appear (multiple elements with '1' are expected — chunk index and pass count)
+    expect(screen.getAllByText('1').length).toBeGreaterThan(0);
+    expect(screen.getByText('4')).toBeInTheDocument();
+  });
 });

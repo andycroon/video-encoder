@@ -9,6 +9,12 @@ function vmafColor(v: number): string {
   return '#ef4444';
 }
 
+function passColor(passes: number): string {
+  if (passes <= 1) return '#22c55e';
+  if (passes <= 3) return '#f59e0b';
+  return '#ef4444';
+}
+
 const th: React.CSSProperties = {
   padding: '8px 12px',
   fontSize: 10,
@@ -75,12 +81,26 @@ export default function ChunkTable({ chunks }: Props) {
                   : <span style={{ color: 'var(--txt-3)' }}>--</span>
                 }
               </td>
-              <td className="mono" style={{
-                padding: '7px 12px',
-                color: c.passes > 1 ? '#fcd34d' : 'var(--txt-3)',
-                fontWeight: c.passes > 1 ? 600 : 400,
-              }}>
-                {c.passes}
+              <td style={{ padding: '7px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{
+                    width: 60,
+                    height: 6,
+                    borderRadius: 3,
+                    background: 'rgba(255,255,255,0.08)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${Math.min((c.passes / 10) * 100, 100)}%`,
+                      height: '100%',
+                      borderRadius: 3,
+                      background: passColor(c.passes),
+                    }} />
+                  </div>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)' }}>
+                    {c.passes}
+                  </span>
+                </div>
               </td>
             </tr>
           ))}
