@@ -12,6 +12,7 @@ const STATUS_BORDER: Record<JobStatus, string> = {
   QUEUED:    '#64748b',
   RUNNING:   '#4080ff',
   PAUSED:    '#f59e0b',
+  RESUMING:  '#d97706',
   DONE:      '#22c55e',
   FAILED:    '#ef4444',
   CANCELLED: '#3f3f46',

@@ -441,3 +441,145 @@ def test_x264_params_str():
 
     result = _x264_params_str({"trellis": "2", "subq": "10"})
     assert result == "trellis=2:subq=10", f"Unexpected result: {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# Resume gate tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.timeout(10)
+def test_resume_skips_done_steps(tmp_path):
+    """Pipeline does not call _ffv1_encode when FFV1 step is already DONE in the DB."""
+    import asyncio
+    import threading
+    from unittest.mock import AsyncMock, patch
+
+    db_path = str(tmp_path / "test.db")
+    source = tmp_path / "source.mkv"
+    source.write_bytes(b"fake")
+
+    done_steps = [
+        {"step_name": "FFV1", "status": "DONE", "id": 1},
+        {"step_name": "SceneDetect", "status": "DONE", "id": 2},
+        {"step_name": "ChunkSplit", "status": "DONE", "id": 3},
+        {"step_name": "AudioTranscode", "status": "DONE", "id": 4},
+    ]
+
+    async def _run():
+        with (
+            patch("encoder.pipeline.get_steps", new=AsyncMock(return_value=done_steps)),
+            patch("encoder.pipeline.get_chunks", new=AsyncMock(return_value=[])),
+            patch("encoder.pipeline._ffv1_encode") as mock_ffv1,
+            patch("encoder.pipeline._detect_scenes", return_value=[]),
+            patch("encoder.pipeline.update_job_status", new=AsyncMock()),
+            patch("encoder.pipeline.create_step", new=AsyncMock(return_value=99)),
+            patch("encoder.pipeline.update_step", new=AsyncMock()),
+            patch("encoder.pipeline.set_job_total_chunks", new=AsyncMock()),
+            patch("encoder.pipeline.set_job_eta", new=AsyncMock()),
+            patch("encoder.pipeline.append_job_log", new=AsyncMock()),
+            patch("encoder.pipeline.create_chunk", new=AsyncMock(return_value=1)),
+            patch("encoder.pipeline.update_chunk", new=AsyncMock()),
+        ):
+            # chunks dir must exist and be empty (no chunk files) so ChunkSplit resume path
+            # returns no chunks — pipeline will raise PipelineError for no chunks
+            chunks_dir = tmp_path / "job_1" / "chunks"
+            chunks_dir.mkdir(parents=True, exist_ok=True)
+
+            cancel = threading.Event()
+            config = dict(DEFAULT_CONFIG)
+            config["audio_codec"] = "flac"
+
+            try:
+                await run_pipeline(
+                    str(source),
+                    db_path,
+                    job_id=1,
+                    config=config,
+                    cancel_event=cancel,
+                    output_dir=str(tmp_path / "output"),
+                    temp_dir=str(tmp_path / "job_1"),
+                )
+            except PipelineError:
+                pass  # Expected — no chunks in dir, that's fine for this test
+
+            # Key assertion: FFV1 encode was NOT called (step was DONE)
+            mock_ffv1.assert_not_called()
+
+    asyncio.run(_run())
+
+
+@pytest.mark.timeout(10)
+def test_resume_deletes_partial_chunk(tmp_path):
+    """Pipeline deletes a partial encoded chunk file before re-encoding it."""
+    import asyncio
+    import threading
+    from unittest.mock import AsyncMock, patch
+
+    db_path = str(tmp_path / "test.db")
+    source = tmp_path / "source.mkv"
+    source.write_bytes(b"fake")
+
+    # Steps FFV1..AudioTranscode done; ChunkEncode not done
+    done_steps = [
+        {"step_name": "FFV1", "status": "DONE", "id": 1},
+        {"step_name": "SceneDetect", "status": "DONE", "id": 2},
+        {"step_name": "ChunkSplit", "status": "DONE", "id": 3},
+        {"step_name": "AudioTranscode", "status": "DONE", "id": 4},
+    ]
+    # chunk_index=0 is PENDING (not done) in DB
+    pending_chunk = [{"chunk_index": 0, "status": "PENDING"}]
+
+    async def _run():
+        # Create a fake partial output file for chunk000000.mov
+        encoded_dir = tmp_path / "job_1" / "encoded"
+        encoded_dir.mkdir(parents=True, exist_ok=True)
+        partial_file = encoded_dir / "chunk000000.mov"
+        partial_file.write_bytes(b"partial data")
+
+        # Create the source chunk file in chunks dir
+        chunks_dir = tmp_path / "job_1" / "chunks"
+        chunks_dir.mkdir(parents=True, exist_ok=True)
+        chunk_source = chunks_dir / "chunk000000.mov"
+        chunk_source.write_bytes(b"chunk data")
+
+        # Capture whether unlink was called on the partial file by checking after
+        assert partial_file.exists(), "Partial file must exist before pipeline runs"
+
+        with (
+            patch("encoder.pipeline.get_steps", new=AsyncMock(return_value=done_steps)),
+            patch("encoder.pipeline.get_chunks", new=AsyncMock(return_value=pending_chunk)),
+            patch("encoder.pipeline._detect_scenes", return_value=[]),
+            patch("encoder.pipeline.update_job_status", new=AsyncMock()),
+            patch("encoder.pipeline.create_step", new=AsyncMock(return_value=99)),
+            patch("encoder.pipeline.update_step", new=AsyncMock()),
+            patch("encoder.pipeline.set_job_total_chunks", new=AsyncMock()),
+            patch("encoder.pipeline.set_job_eta", new=AsyncMock()),
+            patch("encoder.pipeline.append_job_log", new=AsyncMock()),
+            patch("encoder.pipeline.create_chunk", new=AsyncMock(return_value=1)),
+            patch("encoder.pipeline.update_chunk", new=AsyncMock()),
+            patch("encoder.pipeline._encode_chunk_with_vmaf", return_value=(17, 96.8, 1)),
+        ):
+            cancel = threading.Event()
+            config = dict(DEFAULT_CONFIG)
+            config["audio_codec"] = "flac"
+
+            try:
+                await run_pipeline(
+                    str(source),
+                    db_path,
+                    job_id=1,
+                    config=config,
+                    cancel_event=cancel,
+                    output_dir=str(tmp_path / "output"),
+                    temp_dir=str(tmp_path / "job_1"),
+                )
+            except (PipelineError, Exception):
+                pass  # May fail at concat/mux — that's fine
+
+            # Key assertion: partial file was deleted before re-encode
+            assert not partial_file.exists(), (
+                "Partial encoded chunk file should have been deleted before re-encoding"
+            )
+
+    asyncio.run(_run())

@@ -32,6 +32,8 @@ from encoder.db import (
     append_job_log,
     create_chunk,
     create_step,
+    get_chunks,
+    get_steps,
     init_db,
     recover_stale_jobs,
     set_job_eta,
@@ -520,70 +522,121 @@ async def run_pipeline(
 
     intermediate = intermediate_dir / "intermediate.mov"
 
+    # Resume gate: skip steps already completed in a previous run
+    existing_steps = await get_steps(db_path, job_id)
+    completed_steps: set[str] = {s["step_name"] for s in existing_steps if s["status"] == "DONE"}
+
+    existing_chunks = await get_chunks(db_path, job_id)
+    completed_chunk_indices: set[int] = {
+        c["chunk_index"] for c in existing_chunks if c["status"] == "DONE"
+    }
+
+    is_resuming = bool(completed_steps)
+    if is_resuming:
+        _log(f"Resuming job {job_id}: {len(completed_steps)} steps already done")
+
     try:
         await update_job_status(db_path, job_id, "RUNNING")
 
         _check_cancel(cancel_event)
 
         # Step 1: FFV1 encode
-        _emit("stage", {"name": "ffv1_encode"})
-        step_id = await create_step(db_path, job_id, "FFV1")
-        print("[FFV1] Encoding intermediate...")
-        t0 = time.monotonic()
-        _ffv1_encode(source_path, intermediate, cancel_event, on_progress=_log)
-        await update_step(db_path, step_id, "DONE")
-        print(f"[FFV1] done ({time.monotonic() - t0:.0f}s)")
+        if "FFV1" not in completed_steps:
+            _emit("stage", {"name": "ffv1_encode"})
+            step_id = await create_step(db_path, job_id, "FFV1")
+            print("[FFV1] Encoding intermediate...")
+            t0 = time.monotonic()
+            _ffv1_encode(source_path, intermediate, cancel_event, on_progress=_log)
+            await update_step(db_path, step_id, "DONE")
+            print(f"[FFV1] done ({time.monotonic() - t0:.0f}s)")
+        else:
+            _emit("stage", {"name": "ffv1_encode"})
+            _log("Resuming: FFV1 already done, skipping")
 
         _check_cancel(cancel_event)
 
         # Step 2: Scene detect
-        _emit("stage", {"name": "scene_detect"})
-        step_id = await create_step(db_path, job_id, "SceneDetect")
-        print("[SceneDetect] Detecting scenes...")
-        t0 = time.monotonic()
         scene_threshold = config.get("scene_threshold", 27.0)
-        scenes = _detect_scenes(intermediate, scene_threshold, on_progress=_log)
-        await update_step(db_path, step_id, "DONE")
-        _log(f"Found {len(scenes)} scene boundaries")
-        print(f"[SceneDetect] {len(scenes)} scenes, done ({time.monotonic() - t0:.0f}s)")
+        if "SceneDetect" not in completed_steps:
+            _emit("stage", {"name": "scene_detect"})
+            step_id = await create_step(db_path, job_id, "SceneDetect")
+            print("[SceneDetect] Detecting scenes...")
+            t0 = time.monotonic()
+            scenes = _detect_scenes(intermediate, scene_threshold, on_progress=_log)
+            await update_step(db_path, step_id, "DONE")
+            _log(f"Found {len(scenes)} scene boundaries")
+            print(f"[SceneDetect] {len(scenes)} scenes, done ({time.monotonic() - t0:.0f}s)")
+        else:
+            _emit("stage", {"name": "scene_detect"})
+            _log("Resuming: SceneDetect already done, re-detecting for timestamps")
+            scenes = _detect_scenes(intermediate, scene_threshold)
 
         _check_cancel(cancel_event)
 
         # Step 3: Chunk split
-        _emit("stage", {"name": "chunk_split"})
-        step_id = await create_step(db_path, job_id, "ChunkSplit")
-        print("[ChunkSplit] Splitting chunks...")
-        t0 = time.monotonic()
-        chunks = _split_chunks(intermediate, scenes, chunks_dir, cancel_event, on_progress=_log)
-        await update_step(db_path, step_id, "DONE")
-        print(f"[ChunkSplit] {len(chunks)} chunks, done ({time.monotonic() - t0:.0f}s)")
+        if "ChunkSplit" not in completed_steps:
+            _emit("stage", {"name": "chunk_split"})
+            step_id = await create_step(db_path, job_id, "ChunkSplit")
+            print("[ChunkSplit] Splitting chunks...")
+            t0 = time.monotonic()
+            chunks = _split_chunks(intermediate, scenes, chunks_dir, cancel_event, on_progress=_log)
+            await update_step(db_path, step_id, "DONE")
+            print(f"[ChunkSplit] {len(chunks)} chunks, done ({time.monotonic() - t0:.0f}s)")
+        else:
+            _emit("stage", {"name": "chunk_split"})
+            _log("Resuming: ChunkSplit already done, using existing chunks")
+            chunks = sorted(chunks_dir.glob("chunk*.mov"))
+            if not chunks:
+                raise PipelineError("Resume: no chunk files found in chunks directory")
 
         _check_cancel(cancel_event)
 
         # Step 4: Audio transcode
-        _emit("stage", {"name": "audio_transcode"})
-        step_id = await create_step(db_path, job_id, "AudioTranscode")
-        print("[AudioTranscode] Transcoding audio...")
-        t0 = time.monotonic()
         audio_codec = config.get("audio_codec", "eac3")
         _flags, audio_ext = AUDIO_CODECS[audio_codec]
         audio_file = temp_dir / f"audio.{audio_ext}"
-        _transcode_audio(source_path, audio_file, codec=audio_codec, cancel_event=cancel_event, on_progress=_log)
-        await update_step(db_path, step_id, "DONE")
-        print(f"[AudioTranscode] done ({time.monotonic() - t0:.0f}s)")
+        if "AudioTranscode" not in completed_steps:
+            _emit("stage", {"name": "audio_transcode"})
+            step_id = await create_step(db_path, job_id, "AudioTranscode")
+            print("[AudioTranscode] Transcoding audio...")
+            t0 = time.monotonic()
+            _transcode_audio(source_path, audio_file, codec=audio_codec, cancel_event=cancel_event, on_progress=_log)
+            await update_step(db_path, step_id, "DONE")
+            print(f"[AudioTranscode] done ({time.monotonic() - t0:.0f}s)")
+        else:
+            _emit("stage", {"name": "audio_transcode"})
+            _log("Resuming: AudioTranscode already done, skipping")
 
         _check_cancel(cancel_event)
 
         # Steps 5-7: Per-chunk CRF+VMAF feedback loop
         await set_job_total_chunks(db_path, job_id, len(chunks))
         _emit("stage", {"name": "chunk_encode", "total_chunks": len(chunks)})
-        chunk_step_id = await create_step(db_path, job_id, "ChunkEncode")
+
+        # Find or create ChunkEncode step
+        if "ChunkEncode" not in completed_steps:
+            chunk_step_id = await create_step(db_path, job_id, "ChunkEncode")
+        else:
+            chunk_step_id = next(
+                (s["id"] for s in existing_steps if s["step_name"] == "ChunkEncode"),
+                await create_step(db_path, job_id, "ChunkEncode"),
+            )
+
         total = len(chunks)
         encoded_chunks = []
         chunk_durations: list[float] = []  # ms per completed chunk
         for i, chunk_in in enumerate(chunks, 1):
             _check_cancel(cancel_event)
             chunk_out = encoded_dir / chunk_in.name
+
+            if (i - 1) in completed_chunk_indices:
+                _log(f"Resuming: chunk {i}/{total} already done, skipping")
+                encoded_chunks.append(chunk_out)
+                continue
+
+            # Delete any partial output from a previous run before re-encoding
+            chunk_out.unlink(missing_ok=True)
+
             chunk_id = await create_chunk(db_path, job_id, i - 1)
             chunk_label = f"Chunk {i}/{total}"
             _emit("chunk_progress", {
@@ -630,28 +683,37 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 8: Concat
-        _emit("stage", {"name": "merge"})
-        step_id = await create_step(db_path, job_id, "Concat")
-        print("[Concat] Concatenating chunks...")
-        t0 = time.monotonic()
         concat_mp4 = temp_dir / "concat.mp4"
-        concat_list = temp_dir / "concat_list.txt"
-        _write_concat_list(encoded_chunks, concat_list)
-        _concat_chunks(concat_list, concat_mp4, on_progress=_log)
-        await update_step(db_path, step_id, "DONE")
-        print(f"[Concat] done ({time.monotonic() - t0:.0f}s)")
+        if "Concat" not in completed_steps:
+            _emit("stage", {"name": "merge"})
+            step_id = await create_step(db_path, job_id, "Concat")
+            print("[Concat] Concatenating chunks...")
+            t0 = time.monotonic()
+            concat_list = temp_dir / "concat_list.txt"
+            _write_concat_list(encoded_chunks, concat_list)
+            _concat_chunks(concat_list, concat_mp4, on_progress=_log)
+            await update_step(db_path, step_id, "DONE")
+            print(f"[Concat] done ({time.monotonic() - t0:.0f}s)")
+        else:
+            _emit("stage", {"name": "merge"})
+            _log("Resuming: Concat already done, skipping")
 
         _check_cancel(cancel_event)
 
         # Step 9: Mux
-        _emit("stage", {"name": "mux"})
-        step_id = await create_step(db_path, job_id, "Mux")
-        print("[Mux] Muxing video and audio...")
-        t0 = time.monotonic()
-        output_mkv = output_dir / (source_path.stem + ".mkv")
-        _mux_video_audio(concat_mp4, audio_file, output_mkv, on_progress=_log)
-        await update_step(db_path, step_id, "DONE")
-        print(f"[Mux] done ({time.monotonic() - t0:.0f}s)")
+        if "Mux" not in completed_steps:
+            _emit("stage", {"name": "mux"})
+            step_id = await create_step(db_path, job_id, "Mux")
+            print("[Mux] Muxing video and audio...")
+            t0 = time.monotonic()
+            output_mkv = output_dir / (source_path.stem + ".mkv")
+            _mux_video_audio(concat_mp4, audio_file, output_mkv, on_progress=_log)
+            await update_step(db_path, step_id, "DONE")
+            print(f"[Mux] done ({time.monotonic() - t0:.0f}s)")
+        else:
+            _emit("stage", {"name": "mux"})
+            _log("Resuming: Mux already done, skipping")
+            output_mkv = output_dir / (source_path.stem + ".mkv")
 
         await update_job_status(db_path, job_id, "DONE")
         print(f"[Done] Output: {output_mkv}")

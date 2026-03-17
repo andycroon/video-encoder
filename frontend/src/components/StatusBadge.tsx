@@ -4,6 +4,7 @@ const CFG: Record<JobStatus, { color: string; bg: string; border: string; label:
   QUEUED:    { color: '#94a3b8', bg: '#1e2433',  border: '#334155', label: 'Queued'    },
   RUNNING:   { color: '#93c5fd', bg: '#172035',  border: '#2563eb', label: 'Running', pulse: true },
   PAUSED:    { color: '#fcd34d', bg: '#261d0d',  border: '#92400e', label: 'Paused'    },
+  RESUMING:  { color: '#fbbf24', bg: '#1c1600',  border: '#78350f', label: 'Resuming', pulse: true },
   DONE:      { color: '#86efac', bg: '#0d2318',  border: '#166534', label: 'Done'      },
   FAILED:    { color: '#fca5a5', bg: '#220f0f',  border: '#7f1d1d', label: 'Failed'    },
   CANCELLED: { color: '#71717a', bg: '#18181b',  border: '#27272a', label: 'Cancelled' },

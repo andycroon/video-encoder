@@ -1,4 +1,4 @@
-export type JobStatus = 'QUEUED' | 'RUNNING' | 'PAUSED' | 'DONE' | 'FAILED' | 'CANCELLED';
+export type JobStatus = 'QUEUED' | 'RUNNING' | 'PAUSED' | 'DONE' | 'FAILED' | 'CANCELLED' | 'RESUMING';
 
 export interface ChunkData {
   chunkIndex: number;
