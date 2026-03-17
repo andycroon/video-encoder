@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from encoder.cleanup import AutoCleanup
 from encoder.db import (
     init_db,
     recover_stale_jobs,
@@ -24,6 +25,8 @@ from encoder.db import (
     create_profile_db,
     update_profile_db,
     delete_profile_db,
+    delete_job,
+    delete_jobs_by_status,
 )
 from encoder.scheduler import Scheduler
 from encoder.sse import event_bus
@@ -52,10 +55,15 @@ async def lifespan(app: FastAPI):
     watcher = WatchFolder(scheduler=scheduler, db_path=DB_PATH)
     app.state.watcher = watcher
 
+    cleaner = AutoCleanup(db_path=DB_PATH)
+    app.state.cleaner = cleaner
+
     await scheduler.start()
     await watcher.start()
+    await cleaner.start()
     yield
     await watcher.stop()
+    await cleaner.stop()
     await scheduler.stop()
 
 
@@ -85,6 +93,10 @@ class ProfileCreate(BaseModel):
 class ProfileUpdate(BaseModel):
     name: str | None = None
     config: dict | None = None
+
+
+class BulkDeleteBody(BaseModel):
+    status: str  # "DONE" or "FAILED"
 
 
 @app.get("/health")
@@ -151,14 +163,30 @@ async def pause_job(job_id: int, request: Request):
     return await get_job(DB_PATH, job_id)
 
 
+@api.delete("/jobs/bulk", status_code=200)
+async def bulk_delete_jobs(body: BulkDeleteBody):
+    if body.status not in ("DONE", "FAILED"):
+        raise HTTPException(status_code=400, detail="status must be DONE or FAILED")
+    count = await delete_jobs_by_status(DB_PATH, body.status)
+    return {"deleted": count, "status": body.status}
+
+
 @api.delete("/jobs/{job_id}", status_code=200)
-async def cancel_job(job_id: int, request: Request):
+async def delete_or_cancel_job(job_id: int, request: Request):
     job = await get_job(DB_PATH, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    request.app.state.scheduler.cancel(job_id)
-    await update_job_status(DB_PATH, job_id, "CANCELLED")
-    return {"cancelled": job_id}
+
+    if job["status"] in ("DONE", "FAILED", "CANCELLED"):
+        # Terminal state: purge from DB
+        await delete_job(DB_PATH, job_id)
+        return {"deleted": job_id}
+    else:
+        # Active state: cancel first, then purge
+        request.app.state.scheduler.cancel(job_id)
+        await update_job_status(DB_PATH, job_id, "CANCELLED")
+        await delete_job(DB_PATH, job_id)
+        return {"deleted": job_id}
 
 
 @api.get("/jobs/{job_id}/stream")
