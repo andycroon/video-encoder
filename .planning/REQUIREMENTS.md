@@ -129,24 +129,23 @@
 | CONF-05 | Phase 4: Web API + Scheduler | Complete |
 | CONF-06 | Phase 4: Web API + Scheduler | Complete |
 | DOC-01 | Phase 5: React UI | Complete |
-
-| PIPE-V2-01 | Phase 6 | Pending |
-| PIPE-V2-02 | Phase 6 | Pending |
-| PIPE-V2-03 | Phase 6 | Pending |
-| JMGMT-01 | TBD | Pending |
-| JMGMT-02 | TBD | Pending |
-| JMGMT-03 | TBD | Pending |
-| JMGMT-04 | TBD | Pending |
-| UI-V2-01 | TBD | Pending |
-| UI-V2-02 | TBD | Pending |
-| UI-V2-03 | TBD | Pending |
+| PIPE-V2-01 | Phase 6: Pipeline Reliability | Pending |
+| PIPE-V2-02 | Phase 6: Pipeline Reliability | Pending |
+| PIPE-V2-03 | Phase 6: Pipeline Reliability | Pending |
+| JMGMT-01 | Phase 7: Job Management | Pending |
+| JMGMT-02 | Phase 7: Job Management | Pending |
+| JMGMT-03 | Phase 7: Job Management | Pending |
+| JMGMT-04 | Phase 7: Job Management | Pending |
+| UI-V2-01 | Phase 8: UI Enhancements | Pending |
+| UI-V2-02 | Phase 8: UI Enhancements | Pending |
+| UI-V2-03 | Phase 8: UI Enhancements | Pending |
 
 **Coverage:**
 - v1 requirements: 28 total — all Complete
 - v1.1 requirements: 10 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 10 ⚠️
+- Mapped to phases: 10 (Phases 6-8)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-07*
-*Last updated: 2026-03-17 after v1.1 milestone definition*
+*Last updated: 2026-03-17 after v1.1 roadmap creation*

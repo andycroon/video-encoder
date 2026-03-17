@@ -1,24 +1,14 @@
 # Roadmap: VibeCoder Video Encoder
 
-## Overview
+## Milestones
 
-The build order is strictly bottom-up: validate cross-platform subprocess execution first, then add durable state, then build the full encoding pipeline as a CLI, then expose it through a web API with SSE progress streaming, and finally deliver the browser UI that makes it all user-accessible. Each phase produces something independently testable that the next phase depends on. Cutting corners on this order produces foundational rewrites — the Windows subprocess pitfalls must be solved before anything runs on top of them.
+- ✅ **v1.0 MVP** - Phases 1-5 (shipped 2026-03-09)
+- 🚧 **v1.1 Quality & Manageability** - Phases 6-8 (in progress)
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
-
-Decimal phases appear between their surrounding integers in numeric order.
-
-- [x] **Phase 1: Subprocess Foundation** - Cross-platform ffmpeg subprocess wrapper with progress parsing and graceful cancellation (completed 2026-03-07)
-- [x] **Phase 2: SQLite State Layer** - Durable job state schema with WAL mode and tested CRUD functions (completed 2026-03-07)
-- [ ] **Phase 3: Pipeline Runner** - Complete 10-step encoding pipeline as a CLI with VMAF CRF feedback loop
-- [x] **Phase 4: Web API + Scheduler** - FastAPI REST + SSE endpoints, asyncio job scheduler, watch folder, global config (completed 2026-03-08)
-- [x] **Phase 5: React UI** - Browser interface surfacing all queue management, progress, and configuration capabilities (completed 2026-03-09)
-
-## Phase Details
+<details>
+<summary>✅ v1.0 MVP (Phases 1-5) - SHIPPED 2026-03-09</summary>
 
 ### Phase 1: Subprocess Foundation
 **Goal**: Cross-platform ffmpeg and ffprobe subprocess execution is proven correct on Windows and Linux before any other code depends on it
@@ -33,9 +23,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project scaffold + TDD test specifications (RED state)
-- [ ] 01-02-PLAN.md — Implement ffmpeg.py wrapper (GREEN all four tests)
-- [ ] 01-03-PLAN.md — Write README.md Phase 1 prerequisites section
+- [x] 01-01-PLAN.md — Project scaffold + TDD test specifications (RED state)
+- [x] 01-02-PLAN.md — Implement ffmpeg.py wrapper (GREEN all four tests)
+- [x] 01-03-PLAN.md — Write README.md Phase 1 prerequisites section
 
 ### Phase 2: SQLite State Layer
 **Goal**: All job lifecycle state can be written and read durably, surviving application restarts, before the scheduler or API depend on it
@@ -50,8 +40,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Install aiosqlite, write test_db.py specs (RED state), create db.py skeleton
-- [ ] 02-02-PLAN.md — Implement db.py (GREEN all 7 tests), update README.md with Phase 2 section
+- [x] 02-01-PLAN.md — Install aiosqlite, write test_db.py specs (RED state), create db.py skeleton
+- [x] 02-02-PLAN.md — Implement db.py (GREEN all 7 tests), update README.md with Phase 2 section
 
 ### Phase 3: Pipeline Runner
 **Goal**: A real source MKV file can be encoded end-to-end — FFV1 intermediate, scene detection, chunking, audio transcode, per-chunk x264 encode with VMAF CRF feedback loop, concat, mux, and cleanup — entirely from the command line
@@ -67,10 +57,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Test scaffold (14 RED stubs) + pipeline.py skeleton + scenedetect dep
-- [ ] 03-02-PLAN.md — Implement steps 1-4: FFV1 encode, scene detect, chunk split, audio transcode (6 GREEN)
-- [ ] 03-03-PLAN.md — Implement steps 5-7: x264 encode, VMAF scoring, CRF feedback loop (11 GREEN)
-- [ ] 03-04-PLAN.md — Implement steps 8-10: concat, mux, cleanup + run_pipeline orchestrator + CLI + README
+- [x] 03-01-PLAN.md — Test scaffold (14 RED stubs) + pipeline.py skeleton + scenedetect dep
+- [x] 03-02-PLAN.md — Implement steps 1-4: FFV1 encode, scene detect, chunk split, audio transcode (6 GREEN)
+- [x] 03-03-PLAN.md — Implement steps 5-7: x264 encode, VMAF scoring, CRF feedback loop (11 GREEN)
+- [x] 03-04-PLAN.md — Implement steps 8-10: concat, mux, cleanup + run_pipeline orchestrator + CLI + README
 
 ### Phase 4: Web API + Scheduler
 **Goal**: All pipeline capabilities are accessible via HTTP — job submission, pause, cancel, retry, watch folder auto-enqueueing, SSE progress streaming, and global configuration — testable with curl and browser DevTools before the React UI exists
@@ -85,10 +75,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — FastAPI scaffold + settings table (GET/PUT /settings)
-- [ ] 04-02-PLAN.md — Asyncio scheduler + job REST endpoints (POST/GET/PATCH/DELETE/retry)
-- [ ] 04-03-PLAN.md — SSE stream endpoint + disk preflight warning event
-- [ ] 04-04-PLAN.md — Watch folder background task + README Phase 4 section
+- [x] 04-01-PLAN.md — FastAPI scaffold + settings table (GET/PUT /settings)
+- [x] 04-02-PLAN.md — Asyncio scheduler + job REST endpoints (POST/GET/PATCH/DELETE/retry)
+- [x] 04-03-PLAN.md — SSE stream endpoint + disk preflight warning event
+- [x] 04-04-PLAN.md — Watch folder background task + README Phase 4 section
 
 ### Phase 5: React UI
 **Goal**: Every queue management action, progress indicator, and configuration option is accessible in the browser without any command-line interaction; README.md finalized as the complete reference
@@ -104,22 +94,78 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Vite scaffold + types + Zustand store + API wrappers + test stubs (Wave 1)
-- [ ] 05-02-PLAN.md — Backend /profiles CRUD + DB table + FastAPI static serving (Wave 1, parallel)
-- [ ] 05-03-PLAN.md — TopBar + JobRow + JobList + CancelDialog + StatusBadge + JobCard (Wave 2)
-- [ ] 05-04-PLAN.md — useJobStream + StageList + ChunkTable + LogPanel wired into JobCard (Wave 2, parallel)
-- [ ] 05-05-PLAN.md — frontend-design skill: visual polish pass on all components (Wave 3, has checkpoint)
-- [ ] 05-06-PLAN.md — ProfileModal + README Phase 5 section + final checkpoint (Wave 3, has checkpoint)
+- [x] 05-01-PLAN.md — Vite scaffold + types + Zustand store + API wrappers + test stubs (Wave 1)
+- [x] 05-02-PLAN.md — Backend /profiles CRUD + DB table + FastAPI static serving (Wave 1, parallel)
+- [x] 05-03-PLAN.md — TopBar + JobRow + JobList + CancelDialog + StatusBadge + JobCard (Wave 2)
+- [x] 05-04-PLAN.md — useJobStream + StageList + ChunkTable + LogPanel wired into JobCard (Wave 2, parallel)
+- [x] 05-05-PLAN.md — frontend-design skill: visual polish pass on all components (Wave 3, has checkpoint)
+- [x] 05-06-PLAN.md — ProfileModal + README Phase 5 section + final checkpoint (Wave 3, has checkpoint)
+
+</details>
+
+### 🚧 v1.1 Quality & Manageability (In Progress)
+
+**Milestone Goal:** Improve pipeline correctness and throughput (parallel encoding, crash resume, smart CRF), add job history management (delete, bulk-clear, history view, auto-cleanup), and polish the UI (VMAF chart, dark mode, CRF convergence indicator).
+
+#### Phase 6: Pipeline Reliability
+**Goal**: The encoding pipeline selects the correct quality target, survives application crashes, and saturates available CPU cores through parallel chunk encoding
+**Depends on**: Phase 5
+**Requirements**: PIPE-V2-01, PIPE-V2-02, PIPE-V2-03
+**Success Criteria** (what must be TRUE):
+  1. A chunk whose CRF feedback loop oscillates (e.g. bounces between CRF 17 and CRF 18) exits with the encode whose VMAF score is closest to the center of the configured window, not whichever encode the loop happened to terminate on
+  2. A job that was RUNNING when the application crashed or was restarted resumes from its last fully completed pipeline step — steps already marked DONE in the database are skipped and not re-executed
+  3. Chunks whose DB status was not DONE at crash time are re-encoded from scratch (their partially written output files are deleted before re-encode begins)
+  4. With concurrency set to 2 or higher, multiple chunks encode simultaneously and wall-clock time for a multi-chunk job decreases measurably compared to serial encoding
+  5. Cancelling a job with parallel chunks in flight signals all active ffmpeg processes; no orphaned ffmpeg processes remain after cancel completes
+**Plans**: TBD
+
+Plans:
+- [ ] 06-01-PLAN.md — CRF oscillation fix: replace visited_crfs set with VMAF history list, select midpoint-closest encode on exit
+- [ ] 06-02-PLAN.md — Job resume: add completed_steps gate to each pipeline step block; trust DB status not filesystem
+- [ ] 06-03-PLAN.md — Parallel chunk encoding: inner ThreadPoolExecutor, asyncio.run_coroutine_threadsafe DB bridge, PRAGMA busy_timeout, cancel-all-workers handle list; max_parallel_chunks setting in SettingsModal
+
+#### Phase 7: Job Management
+**Goal**: Users can remove jobs they no longer need and find completed work in a dedicated history view without cluttering the active queue
+**Depends on**: Phase 6
+**Requirements**: JMGMT-01, JMGMT-02, JMGMT-03, JMGMT-04
+**Success Criteria** (what must be TRUE):
+  1. A user can delete a single completed or failed job from the history view; the job row and all associated steps, chunks, and logs are removed from the database
+  2. A user can bulk-clear all completed jobs or all failed jobs with a single button click; the active queue (QUEUED and RUNNING jobs) is unaffected
+  3. The UI shows a separate history view containing only terminal-state jobs (DONE and FAILED), keeping the active queue free of completed work
+  4. Attempting to delete a currently RUNNING job cancels it first and waits for the pipeline to exit before removing the database row; no ffmpeg processes are left running after deletion
+  5. When auto-cleanup is enabled (retention hours > 0 in settings), completed jobs older than the configured threshold are automatically removed without user action
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01-PLAN.md — db.py: add PRAGMA foreign_keys = ON, delete_job, delete_jobs_by_status, auto_cleanup_jobs; add max_parallel_chunks and auto_cleanup_hours to SETTINGS_DEFAULTS
+- [ ] 07-02-PLAN.md — main.py: DELETE /api/jobs/{id}, DELETE /api/jobs/bulk, auto-cleanup background task; HistoryList.tsx + BulkActions.tsx frontend components
+
+#### Phase 8: UI Enhancements
+**Goal**: Completed jobs display visual quality evidence through a VMAF chart and CRF convergence indicators, and the interface supports a dark/light theme preference that persists across sessions
+**Depends on**: Phase 7
+**Requirements**: UI-V2-01, UI-V2-02, UI-V2-03
+**Success Criteria** (what must be TRUE):
+  1. Expanding a completed job in the history view reveals a line chart showing the final VMAF score for each chunk in encode order, with the configured VMAF target window rendered as a shaded reference band
+  2. The chunk table for a completed job shows a re-encode count per chunk (how many CRF iterations were needed), with visual differentiation between chunks that converged immediately versus those that required multiple passes
+  3. A theme toggle in the top bar switches between dark and light mode; the selected theme is saved to localStorage and applied on the next page load before first paint (no flash of wrong theme)
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01-PLAN.md — VmafChart.tsx (recharts LineChart + ReferenceArea over existing chunks data) + CRF convergence column in ChunkTable
+- [ ] 08-02-PLAN.md — ThemeToggle.tsx + dark mode CSS (Tailwind @custom-variant dark) + localStorage persistence in useLayoutEffect
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Subprocess Foundation | 3/3 | Complete   | 2026-03-07 |
-| 2. SQLite State Layer | 2/2 | Complete   | 2026-03-07 |
-| 3. Pipeline Runner | 3/4 | In Progress|  |
-| 4. Web API + Scheduler | 4/4 | Complete   | 2026-03-08 |
-| 5. React UI | 6/6 | Complete   | 2026-03-09 |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Subprocess Foundation | v1.0 | 3/3 | Complete | 2026-03-07 |
+| 2. SQLite State Layer | v1.0 | 2/2 | Complete | 2026-03-07 |
+| 3. Pipeline Runner | v1.0 | 3/4 | In Progress | - |
+| 4. Web API + Scheduler | v1.0 | 4/4 | Complete | 2026-03-08 |
+| 5. React UI | v1.0 | 6/6 | Complete | 2026-03-09 |
+| 6. Pipeline Reliability | v1.1 | 0/3 | Not started | - |
+| 7. Job Management | v1.1 | 0/2 | Not started | - |
+| 8. UI Enhancements | v1.1 | 0/2 | Not started | - |
