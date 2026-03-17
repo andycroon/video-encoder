@@ -98,6 +98,10 @@ Recent decisions affecting current work:
 - [Phase 08-ui-enhancements]: Light mode uses dim/relaxed palette (#1e1e22 bg) not full white — preserves industrial aesthetic; semantic colors unchanged
 - [Phase 08-ui-enhancements]: data-theme attribute on documentElement drives CSS switching; inline IIFE script in head applies theme before React bundle for zero-flash
 
+### Roadmap Evolution
+
+- Phase 9 added: Remote Access Auth — HTTP Basic Auth middleware on FastAPI, env-var credentials, protects /api routes and static files, satisfies UI-V2-04
+
 ### Pending Todos
 
 None yet.

@@ -157,7 +157,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -168,4 +168,19 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. React UI | v1.0 | 6/6 | Complete | 2026-03-09 |
 | 6. Pipeline Reliability | v1.1 | 3/3 | Complete | 2026-03-17 |
 | 7. Job Management | v1.1 | 2/2 | Complete | 2026-03-17 |
-| 8. UI Enhancements | 2/2 | Complete    | 2026-03-17 | - |
+| 8. UI Enhancements | v1.1 | 2/2 | Complete | 2026-03-17 |
+| 9. Remote Access Auth | v1.1 | 0/TBD | Not started | - |
+
+#### Phase 9: Remote Access Auth
+**Goal**: The web UI and all API endpoints are protected by HTTP Basic Auth so the app can be safely exposed over a network; credentials are configured via environment variables with no database changes required
+**Depends on**: Phase 8
+**Requirements**: UI-V2-04
+**Success Criteria** (what must be TRUE):
+  1. Accessing any `/api/*` endpoint without credentials returns 401 with a `WWW-Authenticate: Basic` header
+  2. Accessing the frontend static files without credentials returns 401 (no page rendered for unauthenticated users)
+  3. Setting `AUTH_USERNAME` and `AUTH_PASSWORD` env vars enables auth; if both vars are unset, auth middleware is disabled and the app behaves as before (local-only default)
+  4. A browser hitting any protected URL receives a native Basic Auth prompt; entering correct credentials grants full access for the session
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 9 to break down)
