@@ -8,23 +8,44 @@ A cross-platform (Windows + Linux) web application that replaces a PowerShell vi
 
 Every source video can be encoded to a precise VMAF quality target with zero manual intervention — queue it, watch it, get the result.
 
+## Current Milestone: v1.1 Quality & Manageability
+
+**Goal:** Improve pipeline quality (parallel encoding, job resume, smart CRF), expand file input options, add proper job history management, and polish the UI with charts and dark mode.
+
+**Target features:**
+- Parallel chunk encoding with configurable concurrency
+- Job resume from last completed step after crash/restart
+- Smart CRF oscillation resolution (pick encode closest to VMAF window center)
+- Browser file upload and server-side directory browser
+- Job deletion, bulk-clear, history view, and auto-cleanup
+- VMAF history chart, CRF convergence indicator, dark mode
+
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Cross-platform backend (Python) runs on Windows and Linux — v1.0
+- ✓ Web UI queue management (add, pause, cancel, retry) — v1.0
+- ✓ Real-time progress display (stage, chunk, VMAF, CRF, ETA) — v1.0
+- ✓ Per-job and global configuration (VMAF range, CRF bounds, audio codec, paths) — v1.0
+- ✓ Scene-based chunking pipeline (FFV1 → scenedetect → split → x264+VMAF → mux) — v1.0
+- ✓ Watch folder auto-enqueue — v1.0
+- ✓ SSE real-time streaming, SQLite persistence, encoding profiles — v1.0
 
 ### Active
 
-- [ ] Cross-platform backend (Python) runs on Windows and Linux
-- [ ] Web UI allows adding jobs via file path entry, folder browse, browser upload, or watch folder
-- [ ] Queue management: pause, cancel, reorder, and retry failed jobs
-- [ ] Real-time progress display per job (current stage, chunk progress, VMAF scores, CRF)
-- [ ] Per-job configuration: VMAF target range, CRF bounds, audio codec (EAC3, AAC, FLAC, copy)
-- [ ] Scene-based chunking pipeline preserved (FFV1 intermediate → scenedetect → split → encode chunks → merge → mux)
-- [ ] VMAF feedback loop per chunk (adjust CRF ±1 until score lands in target range)
-- [ ] Configurable input/output/temp directory paths
-- [ ] Remove Plex Transcoder dependency — audio encoding via ffmpeg or other cross-platform tools
+- [ ] Parallel chunk encoding with configurable concurrency limit
+- [ ] Job resume from last completed pipeline step after crash/restart
+- [ ] Smart CRF oscillation — select encode whose VMAF is closest to window center
+- [ ] Browser file upload for source files
+- [ ] Server-side directory browser for file selection
+- [ ] User can delete individual completed/failed jobs
+- [ ] User can bulk-clear all completed or all failed jobs
+- [ ] Completed jobs separated into history view; active queue stays clean
+- [ ] Auto-remove completed jobs after configurable time period
+- [ ] VMAF score history chart per job (per-chunk line chart)
+- [ ] CRF convergence indicator per chunk (re-encode count)
+- [ ] Dark mode
 
 ### Out of Scope
 
@@ -66,4 +87,4 @@ PySceneDetect is already Python-based, making Python the natural backend languag
 | Multiple file input methods | Path entry + watch folder + browser upload covers local, NAS, and remote workflows | — Pending |
 
 ---
-*Last updated: 2026-03-07 after initialization*
+*Last updated: 2026-03-17 after v1.1 milestone start*
