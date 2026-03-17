@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import TopBar from './components/TopBar';
+import { useTheme } from './hooks/useTheme';
 import JobList from './components/JobList';
 import ProfileModal from './components/ProfileModal';
 import SettingsModal from './components/SettingsModal';
@@ -7,6 +8,7 @@ import SettingsModal from './components/SettingsModal';
 export default function App() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--txt)' }}>
@@ -31,7 +33,7 @@ export default function App() {
 
           <div style={{ flex: 1 }} />
 
-          <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)' }}>v1.0</span>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)' }}>v1.1</span>
         </div>
       </header>
 
@@ -40,6 +42,8 @@ export default function App() {
         <TopBar
           onEditProfiles={() => setProfileModalOpen(true)}
           onOpenSettings={() => setSettingsModalOpen(true)}
+          onToggleTheme={toggleTheme}
+          theme={theme}
         />
 
         <div style={{ marginTop: 20 }}>

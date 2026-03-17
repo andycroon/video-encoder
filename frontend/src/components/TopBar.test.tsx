@@ -14,6 +14,15 @@ beforeEach(() => {
   vi.spyOn(jobsApi, 'submitJob').mockResolvedValue({ id: 1 } as any);
 });
 
+describe('TopBar — UI-V2-03', () => {
+  it('renders theme toggle button when onToggleTheme is provided', async () => {
+    const toggle = vi.fn();
+    render(<TopBar onToggleTheme={toggle} theme="dark" />);
+    await waitFor(() => screen.getByTitle('Toggle theme'));
+    expect(screen.getByTitle('Toggle theme')).toBeInTheDocument();
+  });
+});
+
 describe('TopBar — QUEUE-01', () => {
   it('Add button is disabled when path input is empty', async () => {
     render(<TopBar />);

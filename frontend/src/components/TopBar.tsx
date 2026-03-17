@@ -9,6 +9,8 @@ import FilePicker from './FilePicker';
 interface Props {
   onEditProfiles?: () => void;
   onOpenSettings?: () => void;
+  onToggleTheme?: () => void;
+  theme?: 'dark' | 'light';
 }
 
 const label: React.CSSProperties = {
@@ -21,7 +23,7 @@ const label: React.CSSProperties = {
   marginBottom: 6,
 };
 
-export default function TopBar({ onEditProfiles, onOpenSettings }: Props) {
+export default function TopBar({ onEditProfiles, onOpenSettings, onToggleTheme, theme }: Props) {
   const [path, setPath] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -233,6 +235,42 @@ export default function TopBar({ onEditProfiles, onOpenSettings }: Props) {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--txt-2)'; }}
               >
                 Settings
+              </button>
+            )}
+            {onToggleTheme && (
+              <button
+                onClick={onToggleTheme}
+                title="Toggle theme"
+                style={{
+                  height: 38, width: 38,
+                  background: 'var(--raised)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'border-color 0.15s, color 0.15s',
+                  color: 'var(--txt-2)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#4a4a5a'; e.currentTarget.style.color = 'var(--txt)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--txt-2)'; }}
+              >
+                {theme === 'light' ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                  </svg>
+                )}
               </button>
             )}
           </div>
