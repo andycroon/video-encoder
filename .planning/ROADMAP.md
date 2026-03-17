@@ -103,7 +103,7 @@ Plans:
 
 </details>
 
-### 🚧 v1.1 Quality & Manageability (In Progress)
+### v1.1 Quality & Manageability (In Progress)
 
 **Milestone Goal:** Improve pipeline correctness and throughput (parallel encoding, crash resume, smart CRF), add job history management (delete, bulk-clear, history view, auto-cleanup), and polish the UI (VMAF chart, dark mode, CRF convergence indicator).
 
@@ -134,11 +134,11 @@ Plans:
   3. The UI shows a separate history view containing only terminal-state jobs (DONE and FAILED), keeping the active queue free of completed work
   4. Attempting to delete a currently RUNNING job cancels it first and waits for the pipeline to exit before removing the database row; no ffmpeg processes are left running after deletion
   5. When auto-cleanup is enabled (retention hours > 0 in settings), completed jobs older than the configured threshold are automatically removed without user action
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — db.py: add PRAGMA foreign_keys = ON, delete_job, delete_jobs_by_status, auto_cleanup_jobs; add max_parallel_chunks and auto_cleanup_hours to SETTINGS_DEFAULTS
-- [ ] 07-02-PLAN.md — main.py: DELETE /api/jobs/{id}, DELETE /api/jobs/bulk, auto-cleanup background task; HistoryList.tsx + BulkActions.tsx frontend components
+- [ ] 07-01-PLAN.md — Backend: PRAGMA foreign_keys, delete_job/delete_jobs_by_status/auto_cleanup_jobs in db.py, DELETE endpoints, AutoCleanup background task
+- [ ] 07-02-PLAN.md — Frontend: Queue/History tab switcher, HistoryList, DeleteJobDialog, BulkActions, SettingsModal Retention section
 
 #### Phase 8: UI Enhancements
 **Goal**: Completed jobs display visual quality evidence through a VMAF chart and CRF convergence indicators, and the interface supports a dark/light theme preference that persists across sessions
@@ -157,7 +157,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -166,6 +166,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 3. Pipeline Runner | v1.0 | 3/4 | In Progress | - |
 | 4. Web API + Scheduler | v1.0 | 4/4 | Complete | 2026-03-08 |
 | 5. React UI | v1.0 | 6/6 | Complete | 2026-03-09 |
-| 6. Pipeline Reliability | 3/3 | Complete   | 2026-03-17 | - |
+| 6. Pipeline Reliability | v1.1 | 3/3 | Complete | 2026-03-17 |
 | 7. Job Management | v1.1 | 0/2 | Not started | - |
 | 8. UI Enhancements | v1.1 | 0/2 | Not started | - |
