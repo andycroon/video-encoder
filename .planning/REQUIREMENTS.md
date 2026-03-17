@@ -52,7 +52,7 @@
 
 ### Pipeline
 
-- [ ] **PIPE-V2-01**: Multiple chunks can encode in parallel (configurable concurrency limit)
+- [x] **PIPE-V2-01**: Multiple chunks can encode in parallel (configurable concurrency limit)
 - [x] **PIPE-V2-02**: Job resumes from last completed step after application crash/restart
 - [x] **PIPE-V2-03**: CRF oscillation resolution picks the encode whose VMAF was closest to the center of the target window (e.g. 96.9 for a 96.2–97.6 range), rather than the last encode the loop happened to land on. If both candidates are equidistant, prefer the lower CRF (slightly over-quality is safer than slightly under).
 
@@ -129,7 +129,7 @@
 | CONF-05 | Phase 4: Web API + Scheduler | Complete |
 | CONF-06 | Phase 4: Web API + Scheduler | Complete |
 | DOC-01 | Phase 5: React UI | Complete |
-| PIPE-V2-01 | Phase 6: Pipeline Reliability | Pending |
+| PIPE-V2-01 | Phase 6: Pipeline Reliability | Complete |
 | PIPE-V2-02 | Phase 6: Pipeline Reliability | Complete |
 | PIPE-V2-03 | Phase 6: Pipeline Reliability | Complete |
 | JMGMT-01 | Phase 7: Job Management | Pending |
