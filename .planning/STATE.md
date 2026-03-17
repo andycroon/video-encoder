@@ -3,11 +3,27 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Quality & Manageability
 status: planning
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-17T17:51:41.685Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-17T18:37:44.653Z"
 last_activity: 2026-03-17 — Phase 7 Job Management complete (2/2 plans)
 progress:
   total_phases: 3
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
+  percent: 100
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: Quality & Manageability
+status: planning
+stopped_at: Phase 8 UI-SPEC approved
+last_updated: "2026-03-17T18:00:13.994Z"
+last_activity: 2026-03-17 — Phase 7 Job Management complete (2/2 plans)
+progress:
+  [██████████] 100%
   completed_phases: 2
   total_plans: 5
   completed_plans: 5
@@ -53,6 +69,8 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 06-pipeline-reliability P03 | 7 min | 3 tasks | 5 files |
 | Phase 07-job-management P01 | 3 min | 2 tasks | 6 files |
 | Phase 07-job-management P02 | 4 min | 2 tasks | 11 files |
+| Phase 08-ui-enhancements P01 | 8 min | 2 tasks | 5 files |
+| Phase 08-ui-enhancements P02 | 8 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -76,6 +94,9 @@ Recent decisions affecting current work:
 - [Phase 07-job-management]: HistoryList renders history rows inline (not via JobRow) to avoid conditional isHistory prop complexity
 - [Phase 07-job-management]: STATUS_BORDER in HistoryList uses Record<string, string> (not JobStatus) since only DONE/FAILED appear
 - [Phase 07-job-management]: Test fixtures updated to include finished_at: null to satisfy updated Job interface
+- [Phase 08-ui-enhancements]: recharts formatter types use typeof guard (not explicit number cast) to satisfy strict TS generics
+- [Phase 08-ui-enhancements]: Light mode uses dim/relaxed palette (#1e1e22 bg) not full white — preserves industrial aesthetic; semantic colors unchanged
+- [Phase 08-ui-enhancements]: data-theme attribute on documentElement drives CSS switching; inline IIFE script in head applies theme before React bundle for zero-flash
 
 ### Pending Todos
 
@@ -89,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T17:51:41.682Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-ui-enhancements/08-CONTEXT.md
+Last session: 2026-03-17T18:37:34.861Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None

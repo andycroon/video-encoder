@@ -65,8 +65,8 @@
 
 ### UI
 
-- [ ] **UI-V2-01**: User sees VMAF score history chart per job (line chart showing per-chunk scores)
-- [ ] **UI-V2-02**: User sees CRF convergence count per chunk (how many re-encodes were needed)
+- [x] **UI-V2-01**: User sees VMAF score history chart per job (line chart showing per-chunk scores)
+- [x] **UI-V2-02**: User sees CRF convergence count per chunk (how many re-encodes were needed)
 - [ ] **UI-V2-03**: User can toggle dark mode; preference persists across sessions
 
 ## v2 Requirements
@@ -136,8 +136,8 @@
 | JMGMT-02 | Phase 7: Job Management | Complete |
 | JMGMT-03 | Phase 7: Job Management | Complete |
 | JMGMT-04 | Phase 7: Job Management | Complete |
-| UI-V2-01 | Phase 8: UI Enhancements | Pending |
-| UI-V2-02 | Phase 8: UI Enhancements | Pending |
+| UI-V2-01 | Phase 8: UI Enhancements | Complete |
+| UI-V2-02 | Phase 8: UI Enhancements | Complete |
 | UI-V2-03 | Phase 8: UI Enhancements | Pending |
 
 **Coverage:**
