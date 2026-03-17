@@ -13,6 +13,7 @@ from __future__ import annotations
 import subprocess
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -270,6 +271,64 @@ def test_crf_oscillation_guard(ffmpeg_bin, tmp):
             _encode_chunk_with_vmaf(chunk, encoded, config)
         except (PipelineError, StopIteration):
             pass  # Acceptable — loop stopped cleanly
+
+
+@pytest.mark.timeout(60)
+def test_crf_oscillation_best_selection(ffmpeg_bin, tmp):
+    """Oscillation exits with the encode closest to center of the VMAF window, lower CRF as tiebreak."""
+    from encoder.pipeline import _encode_chunk_with_vmaf
+
+    chunk = tmp / "chunk.mov"
+    _make_video(ffmpeg_bin, chunk, duration=1.0)
+    encoded = tmp / "encoded.mp4"
+
+    config = dict(DEFAULT_CONFIG)
+    config["vmaf_min"] = 50.0
+    config["vmaf_max"] = 60.0   # center = 55.0
+    config["crf_start"] = 17
+    config["crf_min"] = 15
+    config["crf_max"] = 20
+
+    # CRF 17 -> 40.0 (distance 15), CRF 16 -> 70.0 (distance 15), CRF 17 -> 40.0 (oscillation)
+    # Equidistant — tiebreak picks lower CRF = 16
+    with patch("encoder.pipeline._vmaf_score", side_effect=[40.0, 70.0, 40.0]):
+        result = _encode_chunk_with_vmaf(chunk, encoded, config)
+
+    crf, _vmaf, _iters = result
+    assert crf == 16, f"Expected best_crf=16 (lower CRF tiebreak), got {crf}"
+
+
+@pytest.mark.timeout(60)
+def test_crf_oscillation_reencodes_winner(ffmpeg_bin, tmp):
+    """When best entry was not last written, a re-encode of the winner fires."""
+    from encoder.pipeline import _encode_chunk_with_vmaf, _encode_chunk_x264
+
+    chunk = tmp / "chunk.mov"
+    _make_video(ffmpeg_bin, chunk, duration=1.0)
+    encoded = tmp / "encoded.mp4"
+
+    config = dict(DEFAULT_CONFIG)
+    config["vmaf_min"] = 96.2
+    config["vmaf_max"] = 97.6   # center = 96.9
+    config["crf_start"] = 17
+    config["crf_min"] = 15
+    config["crf_max"] = 20
+
+    # CRF 17 -> 96.0 (dist 0.9), CRF 16 -> 97.8 (dist 0.9), CRF 17 -> 96.0 (oscillation)
+    # Equidistant — lower CRF 16 wins; last written was CRF 17 → re-encode fires with CRF 16
+    vmaf_scores = [96.0, 97.8, 96.0]
+    call_crfs: list[int] = []
+
+    def _fake_x264(chunk_path, output_path, crf, config, *, cancel_event=None, on_progress=None):
+        call_crfs.append(crf)
+
+    with patch("encoder.pipeline._vmaf_score", side_effect=vmaf_scores), \
+         patch("encoder.pipeline._encode_chunk_x264", side_effect=_fake_x264):
+        _encode_chunk_with_vmaf(chunk, encoded, config)
+
+    # 3 loop iterations + 1 re-encode of winner = 4 total calls
+    assert len(call_crfs) == 4, f"Expected 4 _encode_chunk_x264 calls, got {len(call_crfs)}: {call_crfs}"
+    assert call_crfs[-1] == 16, f"Expected final re-encode with crf=16, got {call_crfs[-1]}"
 
 
 @pytest.mark.timeout(120)
