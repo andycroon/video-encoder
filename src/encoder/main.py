@@ -114,6 +114,7 @@ async def submit_job(body: JobSubmit, request: Request):
         "crf_max": settings["crf_max"],
         "crf_start": settings["crf_start"],
         "audio_codec": settings["audio_codec"],
+        "max_parallel_chunks": settings.get("max_parallel_chunks", 1),
     }
     config_snapshot.update(body.config)
     job_id = await create_job(DB_PATH, body.source_path, config_snapshot)
@@ -271,6 +272,12 @@ async def browse_filesystem(path: str = ""):
 
     parent = str(p.parent) if str(p.parent) != str(p) else None
     return {"path": str(p), "parent": parent, "entries": entries}
+
+
+@api.get("/system")
+async def get_system_info():
+    import os
+    return {"cpu_count": os.cpu_count() or 1}
 
 
 app.include_router(api)

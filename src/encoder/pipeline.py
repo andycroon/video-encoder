@@ -20,11 +20,14 @@ Entry points:
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import json
 import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -66,12 +69,21 @@ class PipelineError(Exception):
         self.status = status
 
 
-def _run_ffmpeg_cancellable(cmd: list, cancel_event=None, on_progress=None) -> None:
-    """Run an ffmpeg command. Calls on_progress(line) throttled to ~0.5s, always emitting the final line."""
+def _run_ffmpeg_cancellable(cmd: list, cancel_event=None, on_progress=None, on_started=None) -> None:
+    """Run an ffmpeg command. Calls on_progress(line) throttled to ~0.5s, always emitting the final line.
+
+    on_started: optional callable(proc) called with the FfmpegProcess once the subprocess starts
+                (after first stderr event — at that point _proc is guaranteed to be set).
+    """
     proc = run_ffmpeg(cmd)
+    _started_notified = False
     _last_emit = 0.0
     _last_line = None
     for event in proc:
+        if not _started_notified:
+            _started_notified = True
+            if on_started is not None:
+                on_started(proc)
         if cancel_event and cancel_event.is_set():
             proc.cancel()
             raise PipelineError("Job cancelled", status="CANCELLED")
@@ -81,6 +93,9 @@ def _run_ffmpeg_cancellable(cmd: list, cancel_event=None, on_progress=None) -> N
             if now - _last_emit >= 0.5:
                 on_progress(_last_line)
                 _last_emit = now
+    # If process never yielded an event (instant finish), still notify on_started
+    if not _started_notified and on_started is not None:
+        on_started(proc)
     # Always emit the final progress line so short operations show something
     if on_progress and _last_line:
         on_progress(_last_line)
@@ -247,6 +262,7 @@ def _encode_chunk_x264(
     *,
     cancel_event=None,
     on_progress=None,
+    on_started=None,
 ) -> None:
     """Encode a single FFV1 chunk to x264 at the given CRF."""
     p = config.get("x264_params", {})
@@ -276,7 +292,7 @@ def _encode_chunk_x264(
         "-an", str(output_path),
     ]
     try:
-        _run_ffmpeg_cancellable(cmd, cancel_event, on_progress=on_progress)
+        _run_ffmpeg_cancellable(cmd, cancel_event, on_progress=on_progress, on_started=on_started)
     except FfmpegError as e:
         raise PipelineError(f"x264 encode failed: {e}") from e
 
@@ -348,6 +364,7 @@ def _encode_chunk_with_vmaf(
     cancel_event=None,
     chunk_label: str = "chunk",
     on_progress=None,
+    on_started=None,
 ) -> tuple[int, float, int]:
     """Run the CRF feedback loop for a single chunk.
 
@@ -357,6 +374,9 @@ def _encode_chunk_with_vmaf(
     center of [vmaf_min, vmaf_max]. Lower CRF wins on ties (per PIPE-V2-03).
     If the best entry was not the last file written to disk, a final re-encode
     is performed so the output file matches the selected CRF.
+
+    on_started: optional callable(proc) passed to the first _encode_chunk_x264 call
+                so callers can register the FfmpegProcess for cancel signalling.
     """
     crf: int = config["crf_start"]
     vmaf_min: float = config["vmaf_min"]
@@ -370,7 +390,11 @@ def _encode_chunk_with_vmaf(
     for _i in range(10):
         _check_cancel(cancel_event)
 
-        _encode_chunk_x264(chunk_path, encoded_path, crf, config, cancel_event=cancel_event, on_progress=on_progress)
+        _encode_chunk_x264(chunk_path, encoded_path, crf, config,
+                           cancel_event=cancel_event, on_progress=on_progress,
+                           on_started=on_started)
+        # on_started fires only for the first encode call; clear it after first use
+        on_started = None
         vmaf = _vmaf_score(encoded_path, chunk_path)
 
         # Check for oscillation: if this CRF was already tried, we are cycling
@@ -609,7 +633,8 @@ async def run_pipeline(
 
         _check_cancel(cancel_event)
 
-        # Steps 5-7: Per-chunk CRF+VMAF feedback loop
+        # Steps 5-7: Per-chunk CRF+VMAF feedback loop (parallel when max_parallel_chunks > 1)
+        max_parallel = config.get("max_parallel_chunks", 1)
         await set_job_total_chunks(db_path, job_id, len(chunks))
         _emit("stage", {"name": "chunk_encode", "total_chunks": len(chunks)})
 
@@ -623,61 +648,178 @@ async def run_pipeline(
             )
 
         total = len(chunks)
-        encoded_chunks = []
+        encoded_chunks: list[Path] = []
         chunk_durations: list[float] = []  # ms per completed chunk
-        for i, chunk_in in enumerate(chunks, 1):
-            _check_cancel(cancel_event)
+
+        # Capture the running event loop so worker threads can bridge async DB calls
+        loop = asyncio.get_event_loop()
+
+        # Handle dict for cancel: maps chunk_index -> FfmpegProcess, protected by lock
+        _chunk_handles: dict[int, object] = {}  # values are FfmpegProcess instances
+        _handles_lock = threading.Lock()
+
+        def _register_handle(chunk_index: int, proc) -> None:
+            """Register an active FfmpegProcess for cancel signalling."""
+            with _handles_lock:
+                _chunk_handles[chunk_index] = proc
+
+        def _unregister_handle(chunk_index: int) -> None:
+            """Remove a completed FfmpegProcess from the cancel dict."""
+            with _handles_lock:
+                _chunk_handles.pop(chunk_index, None)
+
+        def _cancel_all_handles() -> None:
+            """Cancel all in-flight ffmpeg processes."""
+            with _handles_lock:
+                for handle in _chunk_handles.values():
+                    try:
+                        handle.cancel()
+                    except OSError:
+                        pass
+
+        # Build list of chunks to encode (skip completed ones for resume)
+        chunks_to_encode: list[tuple[int, Path]] = []
+        for i, chunk_in in enumerate(chunks):
             chunk_out = encoded_dir / chunk_in.name
-
-            if (i - 1) in completed_chunk_indices:
-                _log(f"Resuming: chunk {i}/{total} already done, skipping")
+            if i in completed_chunk_indices:
+                _log(f"Resuming: chunk {i+1}/{total} already done, skipping")
                 encoded_chunks.append(chunk_out)
-                continue
+            else:
+                chunk_out.unlink(missing_ok=True)
+                chunks_to_encode.append((i, chunk_in))
 
-            # Delete any partial output from a previous run before re-encoding
-            chunk_out.unlink(missing_ok=True)
+        def _worker_encode_chunk(chunk_index: int, chunk_in: Path) -> tuple[int, Path, int, float, int, float]:
+            """Encode a single chunk. Returns (index, path, crf, vmaf, iters, duration_ms).
 
-            chunk_id = await create_chunk(db_path, job_id, i - 1)
-            chunk_label = f"Chunk {i}/{total}"
+            Pure CPU work — DB writes are handled by the caller to avoid event-loop conflicts.
+            Safe to call from worker threads (parallel path) or the async coroutine (serial path).
+            """
+            if cancel_event and cancel_event.is_set():
+                raise PipelineError("Job cancelled", status="CANCELLED")
+
+            chunk_out = encoded_dir / chunk_in.name
+            chunk_label = f"Chunk {chunk_index+1}/{total}"
+
             _emit("chunk_progress", {
-                "chunk_index": i - 1,
+                "chunk_index": chunk_index,
                 "crf": config["crf_start"],
                 "pass": 1,
             })
-            _log(f"Encoding chunk {i}/{total}…")
+            _log(f"Encoding chunk {chunk_index+1}/{total}...")
+
+            # on_started callback: register the FfmpegProcess for cancel
+            def _on_encode_started(proc):
+                _register_handle(chunk_index, proc)
+
             t_chunk = time.monotonic()
-            crf, vmaf, iters = _encode_chunk_with_vmaf(
-                chunk_in, chunk_out, config, cancel_event, chunk_label, on_progress=_log
+            try:
+                crf, vmaf, iters = _encode_chunk_with_vmaf(
+                    chunk_in, chunk_out, config, cancel_event, chunk_label,
+                    on_progress=_log, on_started=_on_encode_started,
+                )
+            finally:
+                _unregister_handle(chunk_index)
+            duration_ms = (time.monotonic() - t_chunk) * 1000
+
+            return (chunk_index, chunk_out, crf, vmaf, iters, duration_ms)
+
+        def _worker_encode_chunk_threaded(chunk_index: int, chunk_in: Path, chunk_id: int) -> tuple[int, Path, int, float, int, float]:
+            """Encode a chunk from a worker thread; performs DB writes via event-loop bridge."""
+            idx, chunk_out, crf, vmaf, iters, duration_ms = _worker_encode_chunk(chunk_index, chunk_in)
+
+            # Update chunk in DB via event loop bridge
+            fut = asyncio.run_coroutine_threadsafe(
+                update_chunk(db_path, chunk_id, crf_used=float(crf),
+                             vmaf_score=vmaf, iterations=iters, status="DONE"),
+                loop
             )
-            chunk_durations.append((time.monotonic() - t_chunk) * 1000)
-            await update_chunk(
-                db_path,
-                chunk_id,
-                crf_used=float(crf),
-                vmaf_score=vmaf,
-                iterations=iters,
-                status="DONE",
+            fut.result(timeout=30)
+
+            # Append log via event loop bridge
+            fut = asyncio.run_coroutine_threadsafe(
+                append_job_log(db_path, job_id,
+                               f"[Chunk {chunk_index+1}/{total}] CRF {crf} -> VMAF {vmaf:.2f} ({iters} iter)"),
+                loop
             )
-            # Compute and store ETA in DB
-            remaining = total - i
-            if remaining > 0 and chunk_durations:
-                avg_ms = sum(chunk_durations) / len(chunk_durations)
-                eta_ms = int(avg_ms * remaining)
-            else:
-                eta_ms = None
-            await set_job_eta(db_path, job_id, eta_ms)
-            await append_job_log(
-                db_path, job_id,
-                f"[{chunk_label}] CRF {crf} -> VMAF {vmaf:.2f} ({iters} iter)"
-            )
-            _emit("chunk_complete", {
-                "chunk_index": i - 1,
-                "crf_used": crf,
-                "vmaf_score": round(vmaf, 2),
-                "iterations": iters,
-                "eta_ms": eta_ms,
-            })
-            encoded_chunks.append(chunk_out)
+            fut.result(timeout=30)
+
+            return (idx, chunk_out, crf, vmaf, iters, duration_ms)
+
+        if max_parallel <= 1 or len(chunks_to_encode) <= 1:
+            # Serial path — runs directly in async coroutine; use await for DB calls
+            for chunk_index, chunk_in in chunks_to_encode:
+                _check_cancel(cancel_event)
+                chunk_id = await create_chunk(db_path, job_id, chunk_index)
+                idx, chunk_out, crf, vmaf, iters, dur_ms = _worker_encode_chunk(chunk_index, chunk_in)
+                await update_chunk(db_path, chunk_id, crf_used=float(crf),
+                                   vmaf_score=vmaf, iterations=iters, status="DONE")
+                await append_job_log(
+                    db_path, job_id,
+                    f"[Chunk {chunk_index+1}/{total}] CRF {crf} -> VMAF {vmaf:.2f} ({iters} iter)"
+                )
+                chunk_durations.append(dur_ms)
+                encoded_remaining = len(chunks_to_encode) - len(chunk_durations)
+                if encoded_remaining > 0 and chunk_durations:
+                    avg_ms = sum(chunk_durations) / len(chunk_durations)
+                    eta_ms = int(avg_ms * encoded_remaining)
+                else:
+                    eta_ms = None
+                await set_job_eta(db_path, job_id, eta_ms)
+                _emit("chunk_complete", {
+                    "chunk_index": idx,
+                    "crf_used": crf,
+                    "vmaf_score": round(vmaf, 2),
+                    "iterations": iters,
+                    "eta_ms": eta_ms,
+                })
+                encoded_chunks.append(chunk_out)
+        else:
+            # Parallel path — pre-create chunk DB rows from async context, then submit workers
+            chunk_ids: dict[int, int] = {}
+            for chunk_index, _cin in chunks_to_encode:
+                chunk_ids[chunk_index] = await create_chunk(db_path, job_id, chunk_index)
+
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel) as chunk_executor:
+                    futures = {
+                        chunk_executor.submit(_worker_encode_chunk_threaded, idx, cin, chunk_ids[idx]): idx
+                        for idx, cin in chunks_to_encode
+                    }
+                    for future in concurrent.futures.as_completed(futures):
+                        if cancel_event and cancel_event.is_set():
+                            _cancel_all_handles()
+                            chunk_executor.shutdown(wait=False, cancel_futures=True)
+                            raise PipelineError("Job cancelled", status="CANCELLED")
+
+                        idx, chunk_out, crf, vmaf, iters, dur_ms = future.result()
+                        chunk_durations.append(dur_ms)
+
+                        encoded_remaining = len(chunks_to_encode) - len(chunk_durations)
+                        if encoded_remaining > 0 and chunk_durations:
+                            avg_ms = sum(chunk_durations) / len(chunk_durations)
+                            eta_ms = int(avg_ms * encoded_remaining)
+                        else:
+                            eta_ms = None
+                        fut = asyncio.run_coroutine_threadsafe(
+                            set_job_eta(db_path, job_id, eta_ms), loop
+                        )
+                        fut.result(timeout=30)
+                        _emit("chunk_complete", {
+                            "chunk_index": idx,
+                            "crf_used": crf,
+                            "vmaf_score": round(vmaf, 2),
+                            "iterations": iters,
+                            "eta_ms": eta_ms,
+                        })
+                        encoded_chunks.append(chunk_out)
+            except PipelineError:
+                raise
+            except Exception as exc:
+                _cancel_all_handles()
+                raise PipelineError(f"Parallel chunk encoding failed: {exc}") from exc
+
+        # Sort by name to maintain correct concat order
+        encoded_chunks.sort(key=lambda p: p.name)
 
         await update_step(db_path, chunk_step_id, "DONE")
         _check_cancel(cancel_event)

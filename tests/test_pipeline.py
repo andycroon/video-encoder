@@ -319,7 +319,7 @@ def test_crf_oscillation_reencodes_winner(ffmpeg_bin, tmp):
     vmaf_scores = [96.0, 97.8, 96.0]
     call_crfs: list[int] = []
 
-    def _fake_x264(chunk_path, output_path, crf, config, *, cancel_event=None, on_progress=None):
+    def _fake_x264(chunk_path, output_path, crf, config, *, cancel_event=None, on_progress=None, on_started=None):
         call_crfs.append(crf)
 
     with patch("encoder.pipeline._vmaf_score", side_effect=vmaf_scores), \
