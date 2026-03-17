@@ -48,23 +48,41 @@
 
 - [x] **DOC-01**: README.md is built incrementally across all phases — each phase contributes its relevant section (installation prerequisites in Phase 1, pipeline config params in Phase 3, API/watch folder in Phase 4, full usage guide in Phase 5) so documentation stays current with the code
 
+## v1.1 Requirements
+
+### Pipeline
+
+- [ ] **PIPE-V2-01**: Multiple chunks can encode in parallel (configurable concurrency limit)
+- [ ] **PIPE-V2-02**: Job resumes from last completed step after application crash/restart
+- [ ] **PIPE-V2-03**: CRF oscillation resolution picks the encode whose VMAF was closest to the center of the target window (e.g. 96.9 for a 96.2–97.6 range), rather than the last encode the loop happened to land on. If both candidates are equidistant, prefer the lower CRF (slightly over-quality is safer than slightly under).
+
+### Job Management
+
+- [ ] **JMGMT-01**: User can delete individual completed or failed jobs
+- [ ] **JMGMT-02**: User can bulk-clear all completed jobs or all failed jobs in one action
+- [ ] **JMGMT-03**: Completed jobs appear in a separate history view; active queue shows only queued and running jobs
+- [ ] **JMGMT-04**: System auto-removes completed jobs after a configurable time period (default: 7 days)
+
+### UI
+
+- [ ] **UI-V2-01**: User sees VMAF score history chart per job (line chart showing per-chunk scores)
+- [ ] **UI-V2-02**: User sees CRF convergence count per chunk (how many re-encodes were needed)
+- [ ] **UI-V2-03**: User can toggle dark mode; preference persists across sessions
+
 ## v2 Requirements
 
 ### File Input
 
-- **INPUT-01**: User can upload source files via browser
-- **INPUT-02**: User can browse server-side directory tree to select files
+- **INPUT-01**: User can upload source files via browser (deferred — chunked upload for multi-GB files is significant lift; validate remote-access need first)
 
 ### Pipeline
 
-- **PIPE-V2-01**: Multiple chunks can encode in parallel (configurable concurrency limit)
-- **PIPE-V2-02**: Job resumes from last completed step after application crash/restart
+- **PIPE-V2-04**: System supports 4K HDR H.265 (HEVC) encoding — libx265, HDR10 metadata passthrough (master-display, max-cll), BT.2020 colorspace, 10-bit pixel format.
+  - **Research required before planning:** Validate whether VMAF can be calculated directly on HDR content (10-bit BT.2020) or whether the reference and encoded frames must first be tone-mapped to SDR for a valid comparison. Also evaluate whether `vmaf_v0.6.1` is appropriate for 4K HDR or if the `vmaf_4k` model (or a HDR-specific model) should be used instead.
+- **PIPE-V2-05**: System supports cross-resolution encoding from a 4K HDR source to a 1080p SDR output — includes downscale (e.g. Lanczos), HDR-to-SDR tone mapping (e.g. Hable or reinhard via zscale/tonemap filters), and BT.709 colorspace conversion.
 
 ### UI
 
-- **UI-V2-01**: VMAF score history chart per job (line chart showing per-chunk scores)
-- **UI-V2-02**: CRF convergence indicator per chunk (shows how many re-encodes were needed)
-- **UI-V2-03**: Dark mode
 - **UI-V2-04**: Optional basic-auth gate for remote access
 
 ## Out of Scope
@@ -76,7 +94,8 @@
 | Plugin system | Premature abstraction |
 | GPU encoding (NVENC, QSV, etc.) | Pipeline is specifically x264; GPU paths change quality model |
 | Multi-user authentication | Single-user local tool |
-| Browser upload (v1) | Path entry + watch folder sufficient for v1 |
+| Browser upload (v1.1) | Multi-GB chunked upload protocol; deferred to v2 pending remote-access validation |
+| Server-side directory browser (v1.1) | Already implemented in v1.0 (/api/browse exists) |
 
 ## Traceability
 
@@ -111,11 +130,23 @@
 | CONF-06 | Phase 4: Web API + Scheduler | Complete |
 | DOC-01 | Phase 5: React UI | Complete |
 
+| PIPE-V2-01 | Phase 6 | Pending |
+| PIPE-V2-02 | Phase 6 | Pending |
+| PIPE-V2-03 | Phase 6 | Pending |
+| JMGMT-01 | TBD | Pending |
+| JMGMT-02 | TBD | Pending |
+| JMGMT-03 | TBD | Pending |
+| JMGMT-04 | TBD | Pending |
+| UI-V2-01 | TBD | Pending |
+| UI-V2-02 | TBD | Pending |
+| UI-V2-03 | TBD | Pending |
+
 **Coverage:**
-- v1 requirements: 28 total
-- Mapped to phases: 28
-- Unmapped: 0 ✓
+- v1 requirements: 28 total — all Complete
+- v1.1 requirements: 10 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 10 ⚠️
 
 ---
 *Requirements defined: 2026-03-07*
-*Last updated: 2026-03-07 after roadmap creation — traceability complete*
+*Last updated: 2026-03-17 after v1.1 milestone definition*
