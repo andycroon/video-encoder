@@ -117,7 +117,7 @@ Plans:
   3. Chunks whose DB status was not DONE at crash time are re-encoded from scratch (their partially written output files are deleted before re-encode begins)
   4. With concurrency set to 2 or higher, multiple chunks encode simultaneously and wall-clock time for a multi-chunk job decreases measurably compared to serial encoding
   5. Cancelling a job with parallel chunks in flight signals all active ffmpeg processes; no orphaned ffmpeg processes remain after cancel completes
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] 06-01-PLAN.md — CRF oscillation fix: replace visited_crfs set with VMAF history list, select midpoint-closest encode on exit
