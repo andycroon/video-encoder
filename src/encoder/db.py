@@ -30,6 +30,7 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "temp_path": "",
     "watch_folder_path": "",
     "max_parallel_chunks": "1",
+    "auto_cleanup_hours": "168",
 }
 
 # Default encoding profile matching the original PowerShell script parameters
@@ -64,7 +65,7 @@ DEFAULT_PROFILE_CONFIG: dict = {
 
 # Type coercion map: keys whose values should not stay as strings
 _SETTINGS_FLOAT_KEYS = {"vmaf_min", "vmaf_max"}
-_SETTINGS_INT_KEYS = {"crf_min", "crf_max", "crf_start", "max_parallel_chunks"}
+_SETTINGS_INT_KEYS = {"crf_min", "crf_max", "crf_start", "max_parallel_chunks", "auto_cleanup_hours"}
 
 
 def _utcnow() -> str:
@@ -78,6 +79,7 @@ async def get_db(path: str) -> AsyncIterator:
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA synchronous=NORMAL")
         await db.execute("PRAGMA busy_timeout = 5000")
+        await db.execute("PRAGMA foreign_keys = ON")
         db.row_factory = sqlite3.Row
         yield db
 
@@ -613,3 +615,69 @@ async def delete_profile_db(path: str, profile_id: int) -> bool:
         await db.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
         await db.commit()
     return True
+
+
+async def delete_job(path: str, job_id: int) -> bool:
+    """
+    Permanently delete a job and all associated child rows (chunks, steps).
+    Manually deletes children first because the existing schema lacks ON DELETE CASCADE.
+    Returns False if job not found.
+    """
+    async with get_db(path) as db:
+        cursor = await db.execute("SELECT id FROM jobs WHERE id = ?", (job_id,))
+        if await cursor.fetchone() is None:
+            return False
+        await db.execute("DELETE FROM chunks WHERE job_id = ?", (job_id,))
+        await db.execute("DELETE FROM steps WHERE job_id = ?", (job_id,))
+        await db.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        await db.commit()
+    return True
+
+
+async def delete_jobs_by_status(path: str, status: str) -> int:
+    """
+    Delete all jobs with the given terminal status, plus their child rows.
+    Returns the count of deleted job rows.
+    Only DONE and FAILED are valid statuses for bulk delete.
+    """
+    async with get_db(path) as db:
+        # Get job IDs first so we can clean up children
+        cursor = await db.execute("SELECT id FROM jobs WHERE status = ?", (status,))
+        job_ids = [row[0] for row in await cursor.fetchall()]
+        if not job_ids:
+            return 0
+        placeholders = ",".join("?" * len(job_ids))
+        await db.execute(f"DELETE FROM chunks WHERE job_id IN ({placeholders})", job_ids)
+        await db.execute(f"DELETE FROM steps WHERE job_id IN ({placeholders})", job_ids)
+        await db.execute(f"DELETE FROM jobs WHERE status = ?", (status,))
+        await db.commit()
+        return len(job_ids)
+
+
+async def auto_cleanup_jobs(path: str) -> int:
+    """
+    Delete DONE jobs older than auto_cleanup_hours setting.
+    Returns count of deleted jobs. Does nothing if auto_cleanup_hours = 0.
+    """
+    settings = await get_settings(path)
+    hours = int(settings.get("auto_cleanup_hours", 0))
+    if hours == 0:
+        return 0
+    threshold = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(hours=hours)
+    ).isoformat()
+    async with get_db(path) as db:
+        cursor = await db.execute(
+            "SELECT id FROM jobs WHERE status = 'DONE' AND finished_at < ?",
+            (threshold,)
+        )
+        job_ids = [row[0] for row in await cursor.fetchall()]
+        if not job_ids:
+            return 0
+        placeholders = ",".join("?" * len(job_ids))
+        await db.execute(f"DELETE FROM chunks WHERE job_id IN ({placeholders})", job_ids)
+        await db.execute(f"DELETE FROM steps WHERE job_id IN ({placeholders})", job_ids)
+        await db.execute(f"DELETE FROM jobs WHERE id IN ({placeholders})", job_ids)
+        await db.commit()
+        return len(job_ids)
