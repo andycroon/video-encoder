@@ -559,3 +559,42 @@ Open http://localhost:5173 in a browser.
 cd frontend
 npm test -- --run
 ```
+
+---
+
+## Authentication
+
+VibeCoder Encoder supports optional authentication to protect the web UI when exposed over a network.
+
+### First-Run Setup
+
+On first launch, the app displays an onboarding screen where you create a username and password (minimum 8 characters). These credentials are stored securely (bcrypt-hashed) in the SQLite database — no environment files needed.
+
+### Logging In
+
+After the initial setup, returning visits show a login screen. Enter your credentials to access the app. Sessions last 30 days before requiring re-authentication.
+
+### Logging Out
+
+To log out, open the browser developer tools (F12), go to the Console tab, and run:
+
+```js
+localStorage.removeItem('vce_auth_token');
+location.reload();
+```
+
+This clears the stored session token and returns you to the login screen.
+
+### Resetting Credentials
+
+If you're locked out, delete the user row from the database:
+
+```bash
+sqlite3 encoder.db "DELETE FROM users;"
+```
+
+The next time you visit the app, the onboarding screen will appear again.
+
+### Disabling Authentication
+
+Authentication is only active when a user account exists. If you delete all user rows (see above), the app runs without authentication, just like before this feature was added.
