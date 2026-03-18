@@ -43,7 +43,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 echo ">>> Installing Python dependencies..."
-pip install .
+pip install -e .
 
 # ── Frontend ───────────────────────────────────────────────────────────────
 echo ">>> Building frontend..."

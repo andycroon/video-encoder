@@ -46,7 +46,7 @@ git clone <repo-url>
 cd video-encoder
 python -m venv venv
 venv\Scripts\activate
-pip install .
+pip install -e .
 npm run build
 ```
 
