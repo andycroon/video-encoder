@@ -146,6 +146,12 @@ async def init_db(path: str) -> None:
                 config     TEXT NOT NULL,
                 is_default INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS users (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                username      TEXT    NOT NULL UNIQUE,
+                password_hash TEXT    NOT NULL,
+                created_at    TEXT    NOT NULL
+            );
             """
         )
         # Seed defaults — INSERT OR IGNORE keeps existing user values intact
@@ -652,6 +658,37 @@ async def delete_jobs_by_status(path: str, status: str) -> int:
         await db.execute(f"DELETE FROM jobs WHERE status = ?", (status,))
         await db.commit()
         return len(job_ids)
+
+
+async def create_user(path: str, username: str, password_hash: str) -> dict:
+    """Create a new user. Returns the user dict (id, username, created_at)."""
+    async with get_db(path) as db:
+        now = _utcnow()
+        cursor = await db.execute(
+            "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
+            (username, password_hash, now),
+        )
+        await db.commit()
+        return {"id": cursor.lastrowid, "username": username, "created_at": now}
+
+
+async def get_user_by_username(path: str, username: str) -> dict | None:
+    """Return user dict (id, username, password_hash, created_at) or None."""
+    async with get_db(path) as db:
+        async with db.execute(
+            "SELECT id, username, password_hash, created_at FROM users WHERE username = ?",
+            (username,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def has_any_user(path: str) -> bool:
+    """Return True if at least one user exists in the users table."""
+    async with get_db(path) as db:
+        async with db.execute("SELECT COUNT(*) as cnt FROM users") as cursor:
+            row = await cursor.fetchone()
+            return row["cnt"] > 0
 
 
 async def auto_cleanup_jobs(path: str) -> int:

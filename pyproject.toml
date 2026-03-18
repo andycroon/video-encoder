@@ -11,6 +11,8 @@ dependencies = [
     "scenedetect[opencv]>=0.6.7,<0.7",
     "fastapi>=0.111,<0.120",
     "uvicorn[standard]>=0.29,<0.35",
+    "bcrypt>=4.0,<5",
+    "PyJWT>=2.8,<3",
 ]
 
 [project.optional-dependencies]
