@@ -1,3 +1,5 @@
+import { authFetch } from './authFetch';
+
 const BASE = '/api';
 
 export interface BrowseEntry {
@@ -14,7 +16,7 @@ export interface BrowseResult {
 
 export async function browse(path: string = ''): Promise<BrowseResult> {
   const url = path ? `${BASE}/browse?path=${encodeURIComponent(path)}` : `${BASE}/browse`;
-  const res = await fetch(url);
+  const res = await authFetch(url);
   if (!res.ok) throw new Error(`browse failed: ${res.status}`);
   return res.json();
 }

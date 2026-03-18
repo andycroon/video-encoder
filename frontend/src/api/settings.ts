@@ -1,3 +1,5 @@
+import { authFetch } from './authFetch';
+
 const BASE = '/api';
 
 export interface Settings {
@@ -15,13 +17,13 @@ export interface Settings {
 }
 
 export async function getSettings(): Promise<Settings> {
-  const res = await fetch(`${BASE}/settings`);
+  const res = await authFetch(`${BASE}/settings`);
   if (!res.ok) throw new Error(`getSettings failed: ${res.status}`);
   return res.json();
 }
 
 export async function saveSettings(data: Partial<Settings>): Promise<Settings> {
-  const res = await fetch(`${BASE}/settings`, {
+  const res = await authFetch(`${BASE}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
