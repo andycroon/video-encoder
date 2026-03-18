@@ -25,3 +25,11 @@ Thumbs.db
 
 # Auth
 .jwt_secret
+
+# Runtime database
+encoder.db
+encoder.db-wal
+encoder.db-shm
+
+# Planning / development artifacts (not for public repo)
+.planning/
