@@ -27,7 +27,7 @@ A cross-platform web application for batch video encoding with VMAF-targeted qua
 Python 3.9 or higher. Download from [python.org](https://www.python.org/downloads/).
 
 ```bash
-python --version
+python3 --version
 ```
 
 ### ffmpeg
@@ -74,7 +74,7 @@ npm --version
 ### PySceneDetect
 
 ```bash
-pip install "scenedetect[opencv]>=0.6.7,<0.7"
+pip3 install "scenedetect[opencv]>=0.6.7,<0.7"
 scenedetect version
 ```
 
@@ -96,7 +96,7 @@ git clone <repo-url>
 cd video-encoder
 
 # 2. Install Python package
-pip install .
+pip3 install .
 
 # 3. Build the frontend
 npm run build
@@ -111,7 +111,7 @@ The `npm run build` command installs frontend dependencies and produces `fronten
 ### Local access
 
 ```bash
-python -m uvicorn encoder.main:app --port 8000
+python3 -m uvicorn encoder.main:app --port 8000
 ```
 
 Open `http://localhost:8000` in a browser.
@@ -119,7 +119,7 @@ Open `http://localhost:8000` in a browser.
 ### Remote access (other machines on your network)
 
 ```bash
-python -m uvicorn encoder.main:app --host 0.0.0.0 --port 8000
+python3 -m uvicorn encoder.main:app --host 0.0.0.0 --port 8000
 ```
 
 Then open `http://<server-ip>:8000` from any machine on the network.
@@ -226,15 +226,15 @@ Jobs in `RUNNING` state when the server was last stopped are automatically recov
 
 ```bash
 # Install with dev dependencies (upgrade pip first for editable install support)
-pip install --upgrade pip
-pip install -e ".[dev]"
+pip3 install --upgrade pip
+pip3 install -e ".[dev]"
 
 # Run tests
 pytest tests/ -v
 
 # Frontend dev server (hot reload, proxies API to localhost:8000)
 # Terminal 1
-python -m uvicorn encoder.main:app --reload
+python3 -m uvicorn encoder.main:app --reload
 
 # Terminal 2
 cd frontend
