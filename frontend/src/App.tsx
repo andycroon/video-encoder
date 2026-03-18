@@ -5,7 +5,7 @@ import JobList from './components/JobList';
 import ProfileModal from './components/ProfileModal';
 import SettingsModal from './components/SettingsModal';
 import useAuthStore from './store/authStore';
-import { checkAuthStatus, verifyToken } from './api/auth';
+import { checkAuthStatus } from './api/auth';
 import LoginPage from './components/LoginPage';
 import OnboardingWizard from './components/OnboardingWizard';
 
@@ -17,27 +17,12 @@ export default function App() {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const setupRequired = useAuthStore(s => s.setupRequired);
   const setSetupRequired = useAuthStore(s => s.setSetupRequired);
-  const setToken = useAuthStore(s => s.setToken);
-  const clearToken = useAuthStore(s => s.clearToken);
 
   useEffect(() => {
-    checkAuthStatus().then(async data => {
-      setSetupRequired(data.setup_required);
-      if (!data.setup_required) {
-        // Users exist — validate any stored token rather than trusting localStorage blindly
-        const stored = localStorage.getItem('vce_auth_token');
-        if (stored && await verifyToken(stored)) {
-          setToken(stored);
-        } else {
-          clearToken();
-        }
-      }
-    }).catch(() => {
-      // Server unreachable — isAuthenticated is already false, so this shows LoginPage
-      // where the user will get a network error and know to start the server
-      setSetupRequired(false);
-    });
-  }, [setSetupRequired, setToken, clearToken]);
+    checkAuthStatus()
+      .then(data => setSetupRequired(data.setup_required))
+      .catch(() => setSetupRequired(false));
+  }, [setSetupRequired]);
 
   // Loading — waiting for auth status check
   if (setupRequired === null) {

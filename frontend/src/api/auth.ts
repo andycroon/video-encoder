@@ -6,12 +6,6 @@ export async function checkAuthStatus(): Promise<{ setup_required: boolean }> {
   return res.json();
 }
 
-export async function verifyToken(token: string): Promise<boolean> {
-  const res = await fetch(`${BASE}/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.ok;
-}
 
 export async function login(username: string, password: string): Promise<{ access_token: string }> {
   const res = await fetch(`${BASE}/auth/login`, {
