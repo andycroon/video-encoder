@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ── Detect OS and install system dependencies ──────────────────────────────
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     if ! command -v apt &>/dev/null; then
@@ -39,8 +41,8 @@ fi
 
 # ── Python virtual environment ─────────────────────────────────────────────
 echo ">>> Creating Python virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv "$INSTALL_DIR/venv"
+source "$INSTALL_DIR/venv/bin/activate"
 
 echo ">>> Installing Python dependencies..."
 pip install -e .
@@ -49,10 +51,44 @@ pip install -e .
 echo ">>> Building frontend..."
 npm run build
 
-chmod +x start.sh
+chmod +x "$INSTALL_DIR/start.sh"
 
-echo ""
-echo "✓ Installation complete."
-echo ""
-echo "Start the server:  ./start.sh"
-echo "Remote access:     ./start.sh --host 0.0.0.0"
+# ── Systemd service (Linux only) ───────────────────────────────────────────
+if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v systemctl &>/dev/null; then
+    echo ">>> Installing systemd service..."
+
+    sudo tee /etc/systemd/system/video-encoder.service > /dev/null <<EOF
+[Unit]
+Description=VibeCoder Video Encoder
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/venv/bin/uvicorn encoder.main:app --host 0.0.0.0 --port 8765
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable video-encoder
+    sudo systemctl restart video-encoder
+
+    echo ""
+    echo "✓ Installation complete. Service is running."
+    echo ""
+    echo "Manage the service:"
+    echo "  sudo systemctl status video-encoder"
+    echo "  sudo systemctl restart video-encoder"
+    echo "  sudo systemctl stop video-encoder"
+    echo "  journalctl -u video-encoder -f   (live logs)"
+else
+    echo ""
+    echo "✓ Installation complete."
+    echo ""
+    echo "Start the server:  ./start.sh"
+fi

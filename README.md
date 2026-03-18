@@ -62,10 +62,21 @@ All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
 
 ## Running the Server
 
-### Local access
+### Linux
+
+On Linux, `install.sh` automatically installs a systemd service that starts on boot and restarts on failure:
 
 ```bash
-# Linux / macOS
+sudo systemctl status video-encoder    # check status
+sudo systemctl restart video-encoder   # restart
+sudo systemctl stop video-encoder      # stop
+journalctl -u video-encoder -f         # live logs
+```
+
+### macOS / Windows
+
+```bash
+# macOS
 ./start.sh
 
 # Windows
@@ -73,16 +84,6 @@ start.bat
 ```
 
 Open `http://localhost:8765` in a browser.
-
-### Remote access (other machines on your network)
-
-```bash
-# Linux / macOS
-./start.sh --host 0.0.0.0 --port 8765
-
-# Windows
-start.bat --host 0.0.0.0 --port 8765
-```
 
 Then open `http://<server-ip>:8765` from any machine on the network.
 
