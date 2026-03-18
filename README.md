@@ -111,7 +111,7 @@ The `npm run build` command installs frontend dependencies and produces `fronten
 ### Local access
 
 ```bash
-uvicorn encoder.main:app --port 8000
+python -m uvicorn encoder.main:app --port 8000
 ```
 
 Open `http://localhost:8000` in a browser.
@@ -119,7 +119,7 @@ Open `http://localhost:8000` in a browser.
 ### Remote access (other machines on your network)
 
 ```bash
-uvicorn encoder.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn encoder.main:app --host 0.0.0.0 --port 8000
 ```
 
 Then open `http://<server-ip>:8000` from any machine on the network.
@@ -234,7 +234,7 @@ pytest tests/ -v
 
 # Frontend dev server (hot reload, proxies API to localhost:8000)
 # Terminal 1
-uvicorn encoder.main:app --reload
+python -m uvicorn encoder.main:app --reload
 
 # Terminal 2
 cd frontend
