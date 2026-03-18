@@ -36,11 +36,17 @@ Must be built with **libx264** and **libvmaf** support.
 
 **Windows** — place `ffmpeg.exe` at `C:\ffmpeg\ffmpeg.exe`. Use a full GPL build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) which includes both codecs.
 
-**Linux** — install via package manager (most distros ship ffmpeg with libvmaf):
+**Linux** — the system ffmpeg on Ubuntu/Debian does **not** include libvmaf. Use a static build instead:
+
 ```bash
-sudo apt install ffmpeg        # Debian/Ubuntu
-sudo dnf install ffmpeg        # Fedora
+# Download a static build with libvmaf included (amd64)
+wget https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-linux64-gpl.tar.xz
+tar -xf ffmpeg-master-latest-linux64-gpl.tar.xz
+sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/local/bin/
+sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
 ```
+
+Alternatively, use John Van Sickle's static builds at [johnvansickle.com/ffmpeg](https://johnvansickle.com/ffmpeg/) which also include libvmaf.
 
 Verify both codecs are present:
 ```bash
