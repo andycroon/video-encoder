@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Quality & Manageability
 status: planning
-stopped_at: Completed 09-01-PLAN.md — Phase 9 Plan 1 backend auth done
-last_updated: "2026-03-18T08:21:17.971Z"
+stopped_at: Completed 09-02-PLAN.md — awaiting Task 4 human verification checkpoint
+last_updated: "2026-03-18T08:26:42.425Z"
 last_activity: 2026-03-17 — Phase 7 Job Management complete (2/2 plans)
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 ---
@@ -87,6 +87,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08-ui-enhancements P01 | 8 min | 2 tasks | 5 files |
 | Phase 08-ui-enhancements P02 | 8 min | 2 tasks | 6 files |
 | Phase 09-remote-access-auth P01 | 4 min | 2 tasks | 4 files |
+| Phase 09-remote-access-auth P02 | 3 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,8 @@ Recent decisions affecting current work:
 - [Phase 09-remote-access-auth]: JWT sub claim must be str not int — PyJWT>=2.8 enforces RFC 7519 requiring sub to be a string
 - [Phase 09-remote-access-auth]: AuthMiddleware is backward compatible: passes all requests through when no users exist, enabling zero-downtime auth activation
 - [Phase 09-remote-access-auth]: SSE stream endpoints accept ?token= query param since EventSource API cannot send Authorization headers
+- [Phase 09-remote-access-auth]: authFetch uses useAuthStore.getState() for imperative store access outside React render cycle
+- [Phase 09-remote-access-auth]: OnboardingWizard calls setSetupRequired(false) before setToken so App.tsx routes to main app correctly
 
 ### Roadmap Evolution
 
@@ -133,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T08:21:17.968Z
-Stopped at: Completed 09-01-PLAN.md — Phase 9 Plan 1 backend auth done
+Last session: 2026-03-18T08:26:42.421Z
+Stopped at: Completed 09-02-PLAN.md — awaiting Task 4 human verification checkpoint
 Resume file: None
