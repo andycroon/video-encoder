@@ -3,20 +3,40 @@ from __future__ import annotations
 
 import datetime
 import os
+import secrets
 
 import bcrypt
 import jwt
 
-# Secret key — generated once per installation, stored in env or auto-generated
+# Secret key — loaded from env, persisted file, or generated once and saved
 _SECRET_KEY = os.environ.get("ENCODER_JWT_SECRET", "")
 
 
 def _get_secret() -> str:
-    """Return JWT secret, generating one if not set."""
+    """Return JWT secret.
+
+    Priority:
+    1. ENCODER_JWT_SECRET env var (set at runtime)
+    2. .jwt_secret file next to the database (persists across restarts)
+    3. Generate a new secret and save it to .jwt_secret
+
+    This ensures tokens remain valid across server restarts.
+    """
     global _SECRET_KEY
-    if not _SECRET_KEY:
-        import secrets
+    if _SECRET_KEY:
+        return _SECRET_KEY
+
+    secret_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".jwt_secret")
+    secret_file = os.path.normpath(secret_file)
+
+    if os.path.exists(secret_file):
+        with open(secret_file) as f:
+            _SECRET_KEY = f.read().strip()
+    else:
         _SECRET_KEY = secrets.token_hex(32)
+        with open(secret_file, "w") as f:
+            f.write(_SECRET_KEY)
+
     return _SECRET_KEY
 
 

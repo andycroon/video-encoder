@@ -13,7 +13,7 @@ const STORAGE_KEY = 'vce_auth_token';
 
 const useAuthStore = create<AuthState>((set) => ({
   token: localStorage.getItem(STORAGE_KEY),
-  isAuthenticated: !!localStorage.getItem(STORAGE_KEY),
+  isAuthenticated: false,  // never assume valid — App.tsx validates on startup
   setupRequired: null,
   setToken: (token: string) => {
     localStorage.setItem(STORAGE_KEY, token);

@@ -195,6 +195,15 @@ async def auth_login(body: AuthLogin):
     return {"access_token": token}
 
 
+@api.get("/auth/me")
+async def auth_me(request: Request):
+    """Protected endpoint: returns current user info. Used by the frontend to validate a stored token on startup."""
+    user = getattr(request.state, "user", None)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return {"user_id": user["sub"], "username": user["username"]}
+
+
 @api.post("/auth/register", status_code=201)
 async def auth_register(body: AuthRegister):
     """Public endpoint (first-run only): create the initial user account."""
