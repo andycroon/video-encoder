@@ -427,4 +427,12 @@ app.include_router(api)
 # Static file serving — MUST be last to avoid intercepting API routes
 _dist = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
 if os.path.isdir(_dist):
+    _index = os.path.join(_dist, "index.html")
+
+    @app.get("/", include_in_schema=False)
+    async def serve_root():
+        """Serve index.html with no-cache so browsers always load the latest JS bundle."""
+        from fastapi.responses import FileResponse
+        return FileResponse(_index, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
+
     app.mount("/", StaticFiles(directory=_dist, html=True), name="frontend")

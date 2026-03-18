@@ -12,7 +12,7 @@ VibeCoder Video Encoder — batch x264 encoding with VMAF-targeted quality, desi
    ```
 3. **Run:**
    ```bash
-   uvicorn encoder.main:app
+   uvicorn encoder.main:app --host 0.0.0.0
    ```
 4. **Open:** http://localhost:8000 in a browser
 5. **Add a job:** Type a `.mkv` file path in the top bar and click Add
@@ -327,7 +327,7 @@ asyncio.run(run_pipeline(
 From the project root, start uvicorn:
 
 ```bash
-python -m uvicorn encoder.main:app --host 127.0.0.1 --port 8000
+python -m uvicorn encoder.main:app --host 0.0.0.0 --port 8000
 ```
 
 Wait for the line: `Application startup complete.`
