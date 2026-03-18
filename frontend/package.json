@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node -e \"try{require('fs').rmSync('node_modules/.vite',{recursive:true,force:true})}catch(e){}\"",
-    "build": "tsc -b && vite build && node cache-bust.cjs",
+    "build": "node clean.cjs && tsc -b && vite build && node cache-bust.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest"
