@@ -96,7 +96,7 @@ git clone <repo-url>
 cd video-encoder
 
 # 2. Install Python package
-pip install -e .
+pip install .
 
 # 3. Build the frontend
 npm run build
@@ -225,7 +225,8 @@ Jobs in `RUNNING` state when the server was last stopped are automatically recov
 ## Development
 
 ```bash
-# Install with dev dependencies
+# Install with dev dependencies (upgrade pip first for editable install support)
+pip install --upgrade pip
 pip install -e ".[dev]"
 
 # Run tests
