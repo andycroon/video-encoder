@@ -22,76 +22,32 @@ A cross-platform web application for batch video encoding with VMAF-targeted qua
 
 ## Installation
 
-### 1. System prerequisites
-
-**Windows**
-
-- Python 3.9+: download from [python.org](https://www.python.org/downloads/)
-- Node.js + npm: download from [nodejs.org](https://nodejs.org/)
-- ffmpeg: place `ffmpeg.exe` at `C:\ffmpeg\ffmpeg.exe` — use a full GPL build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) which includes libx264 and libvmaf
-
-**Ubuntu / Debian**
-
-```bash
-# Python, pip, venv, and Node.js
-sudo apt update
-sudo apt install python3-full python3-pip nodejs npm
-
-# ffmpeg — the system package does NOT include libvmaf, install a static build
-sudo apt remove --purge ffmpeg   # remove system version if present
-wget https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-linux64-gpl.tar.xz
-tar -xf ffmpeg-master-latest-linux64-gpl.tar.xz
-sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/local/bin/
-sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
-hash -r   # clear bash's cached path
-
-# Verify libvmaf is present
-ffmpeg -version
-# Configuration line should include --enable-libx264 and --enable-libvmaf
-```
-
-**macOS**
-
-```bash
-brew install python node ffmpeg
-```
-
----
-
-### 2. Clone and install
+### Linux / macOS
 
 ```bash
 git clone <repo-url>
 cd video-encoder
+chmod +x install.sh start.sh
+./install.sh
 ```
 
-Create and activate a virtual environment — this ensures `python`, `pip`, and `uvicorn` work consistently on every platform:
+The install script handles everything: system packages, ffmpeg (with libvmaf), Python virtual environment, and the frontend build.
 
-```bash
-# Linux / macOS
-python3 -m venv venv
-source venv/bin/activate
+### Windows
 
-# Windows
+Prerequisites — install these first:
+- Python 3.9+: [python.org](https://www.python.org/downloads/)
+- Node.js + npm: [nodejs.org](https://nodejs.org/)
+- ffmpeg: place `ffmpeg.exe` at `C:\ffmpeg\ffmpeg.exe` — use a GPL build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) which includes libx264 and libvmaf
+
+Then in a command prompt:
+```bat
+git clone <repo-url>
+cd video-encoder
 python -m venv venv
 venv\Scripts\activate
-```
-
-Your prompt will show `(venv)` when active.
-
-```bash
 pip install .
 npm run build
-```
-
-> **Each new terminal session:** activate the venv before starting the server (`source venv/bin/activate` on Linux/macOS, `venv\Scripts\activate` on Windows).
-
-### PySceneDetect
-
-PySceneDetect is installed automatically by `pip install .`. Verify it works:
-
-```bash
-scenedetect version
 ```
 
 ### Plex Transcoder (optional)
@@ -109,7 +65,11 @@ All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
 ### Local access
 
 ```bash
-uvicorn encoder.main:app --port 8000
+# Linux / macOS
+./start.sh
+
+# Windows
+start.bat
 ```
 
 Open `http://localhost:8000` in a browser.
@@ -117,7 +77,11 @@ Open `http://localhost:8000` in a browser.
 ### Remote access (other machines on your network)
 
 ```bash
-uvicorn encoder.main:app --host 0.0.0.0 --port 8000
+# Linux / macOS
+./start.sh --host 0.0.0.0 --port 8000
+
+# Windows
+start.bat --host 0.0.0.0 --port 8000
 ```
 
 Then open `http://<server-ip>:8000` from any machine on the network.
@@ -223,7 +187,8 @@ Jobs in `RUNNING` state when the server was last stopped are automatically recov
 ## Development
 
 ```bash
-# Activate venv first (see Installation), then:
+# Linux/macOS — activate venv first
+source venv/bin/activate
 pip install -e ".[dev]"
 
 # Run tests
@@ -231,7 +196,7 @@ pytest tests/ -v
 
 # Frontend dev server (hot reload, proxies API to localhost:8000)
 # Terminal 1
-uvicorn encoder.main:app --reload
+./start.sh --reload
 
 # Terminal 2
 cd frontend
