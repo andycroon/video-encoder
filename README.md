@@ -72,19 +72,19 @@ All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
 start.bat
 ```
 
-Open `http://localhost:8000` in a browser.
+Open `http://localhost:8765` in a browser.
 
 ### Remote access (other machines on your network)
 
 ```bash
 # Linux / macOS
-./start.sh --host 0.0.0.0 --port 8000
+./start.sh --host 0.0.0.0 --port 8765
 
 # Windows
-start.bat --host 0.0.0.0 --port 8000
+start.bat --host 0.0.0.0 --port 8765
 ```
 
-Then open `http://<server-ip>:8000` from any machine on the network.
+Then open `http://<server-ip>:8765` from any machine on the network.
 
 ### Exposing via a reverse proxy (Caddy example)
 
@@ -92,7 +92,7 @@ If you want to serve the app at a domain with HTTPS, add a block to your Caddyfi
 
 ```
 encoder.yourdomain.com {
-    reverse_proxy localhost:8000
+    reverse_proxy localhost:8765
 }
 ```
 
@@ -194,7 +194,7 @@ pip install -e ".[dev]"
 # Run tests
 pytest tests/ -v
 
-# Frontend dev server (hot reload, proxies API to localhost:8000)
+# Frontend dev server (hot reload, proxies API to localhost:8765)
 # Terminal 1
 ./start.sh --reload
 

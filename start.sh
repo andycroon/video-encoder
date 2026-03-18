@@ -7,4 +7,4 @@ if [ ! -f "venv/bin/activate" ]; then
 fi
 
 source venv/bin/activate
-exec uvicorn encoder.main:app "$@"
+exec uvicorn encoder.main:app --port 8765 "$@"
