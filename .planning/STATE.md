@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Quality & Manageability
 status: planning
-stopped_at: Phase 9 UI-SPEC approved
-last_updated: "2026-03-18T07:58:09.758Z"
+stopped_at: Completed 09-01-PLAN.md — Phase 9 Plan 1 backend auth done
+last_updated: "2026-03-18T08:21:17.971Z"
 last_activity: 2026-03-17 — Phase 7 Job Management complete (2/2 plans)
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 ---
@@ -86,6 +86,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07-job-management P02 | 4 min | 2 tasks | 11 files |
 | Phase 08-ui-enhancements P01 | 8 min | 2 tasks | 5 files |
 | Phase 08-ui-enhancements P02 | 8 min | 2 tasks | 6 files |
+| Phase 09-remote-access-auth P01 | 4 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase 08-ui-enhancements]: recharts formatter types use typeof guard (not explicit number cast) to satisfy strict TS generics
 - [Phase 08-ui-enhancements]: Light mode uses dim/relaxed palette (#1e1e22 bg) not full white — preserves industrial aesthetic; semantic colors unchanged
 - [Phase 08-ui-enhancements]: data-theme attribute on documentElement drives CSS switching; inline IIFE script in head applies theme before React bundle for zero-flash
+- [Phase 09-remote-access-auth]: JWT sub claim must be str not int — PyJWT>=2.8 enforces RFC 7519 requiring sub to be a string
+- [Phase 09-remote-access-auth]: AuthMiddleware is backward compatible: passes all requests through when no users exist, enabling zero-downtime auth activation
+- [Phase 09-remote-access-auth]: SSE stream endpoints accept ?token= query param since EventSource API cannot send Authorization headers
 
 ### Roadmap Evolution
 
@@ -129,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T07:58:09.755Z
-Stopped at: Phase 9 UI-SPEC approved
-Resume file: .planning/phases/09-remote-access-auth/09-UI-SPEC.md
+Last session: 2026-03-18T08:21:17.968Z
+Stopped at: Completed 09-01-PLAN.md — Phase 9 Plan 1 backend auth done
+Resume file: None
