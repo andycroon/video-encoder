@@ -74,7 +74,7 @@ npm --version
 ### PySceneDetect
 
 ```bash
-pip3 install "scenedetect[opencv]>=0.6.7,<0.7"
+pip install "scenedetect[opencv]>=0.6.7,<0.7"
 scenedetect version
 ```
 
@@ -94,15 +94,33 @@ All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
 # 1. Clone
 git clone <repo-url>
 cd video-encoder
+```
 
-# 2. Install Python package
-pip3 install .
+**2. Create and activate a virtual environment**
 
-# 3. Build the frontend
+```bash
+# Linux / macOS
+python3 -m venv venv
+source venv/bin/activate
+
+# Windows
+python -m venv venv
+venv\Scripts\activate
+```
+
+Once the venv is active your prompt will show `(venv)`. All subsequent commands — `python`, `pip`, `uvicorn` — will use the venv automatically on every platform.
+
+```bash
+# 3. Install the package
+pip install .
+
+# 4. Build the frontend
 npm run build
 ```
 
 The `npm run build` command installs frontend dependencies and produces `frontend/dist/`, which the backend serves automatically.
+
+> **Remember to activate the venv** (`source venv/bin/activate` on Linux/macOS, `venv\Scripts\activate` on Windows) each time you open a new terminal before starting the server.
 
 ---
 
@@ -111,7 +129,7 @@ The `npm run build` command installs frontend dependencies and produces `fronten
 ### Local access
 
 ```bash
-python3 -m uvicorn encoder.main:app --port 8000
+uvicorn encoder.main:app --port 8000
 ```
 
 Open `http://localhost:8000` in a browser.
@@ -119,7 +137,7 @@ Open `http://localhost:8000` in a browser.
 ### Remote access (other machines on your network)
 
 ```bash
-python3 -m uvicorn encoder.main:app --host 0.0.0.0 --port 8000
+uvicorn encoder.main:app --host 0.0.0.0 --port 8000
 ```
 
 Then open `http://<server-ip>:8000` from any machine on the network.
@@ -225,16 +243,15 @@ Jobs in `RUNNING` state when the server was last stopped are automatically recov
 ## Development
 
 ```bash
-# Install with dev dependencies (upgrade pip first for editable install support)
-pip3 install --upgrade pip
-pip3 install -e ".[dev]"
+# Activate venv first (see Installation), then:
+pip install -e ".[dev]"
 
 # Run tests
 pytest tests/ -v
 
 # Frontend dev server (hot reload, proxies API to localhost:8000)
 # Terminal 1
-python3 -m uvicorn encoder.main:app --reload
+uvicorn encoder.main:app --reload
 
 # Terminal 2
 cd frontend
