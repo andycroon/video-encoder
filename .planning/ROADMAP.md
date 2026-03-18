@@ -2,13 +2,13 @@
 
 ## Milestones
 
-- ✅ **v1.0 MVP** - Phases 1-5 (shipped 2026-03-09)
+- ✅ **v1.0 MVP** - Phases 1-5 (shipped 2009-03-09)
 - 🚧 **v1.1 Quality & Manageability** - Phases 6-8 (in progress)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 MVP (Phases 1-5) - SHIPPED 2026-03-09</summary>
+<summary>✅ v1.0 MVP (Phases 1-5) - SHIPPED 2009-03-09</summary>
 
 ### Phase 1: Subprocess Foundation
 **Goal**: Cross-platform ffmpeg and ffprobe subprocess execution is proven correct on Windows and Linux before any other code depends on it
@@ -153,35 +153,3 @@ Plans:
 Plans:
 - [ ] 08-01-PLAN.md — VmafChart.tsx (recharts LineChart + ReferenceArea) + CRF convergence progress bar in ChunkTable + JobCard layout update
 - [ ] 08-02-PLAN.md — useTheme hook + dark/dim CSS variable overrides + flash-prevention inline script + TopBar theme toggle button
-
-#### Phase 9: Remote Access Auth
-**Goal**: The web UI and all API endpoints are protected by JWT authentication so the app can be safely exposed over a network; credentials are stored as bcrypt hashes in the existing SQLite database with a first-run onboarding wizard and login page
-**Depends on**: Phase 8
-**Requirements**: UI-V2-04
-**Success Criteria** (what must be TRUE):
-  1. Accessing any `/api/*` endpoint without a valid JWT returns 401 with a `WWW-Authenticate: Bearer` header
-  2. Accessing the frontend static files without a valid JWT returns 401 (no page rendered for unauthenticated users)
-  3. When no user exists in the database, auth is disabled and the app behaves as before (local-only default); first-run shows an onboarding wizard to create credentials
-  4. A browser shows a login page when a user exists but no valid JWT is stored; entering correct credentials grants full access for 30 days
-**Plans**: 2 plans
-
-Plans:
-- [ ] 09-01-PLAN.md — Backend: users table, bcrypt + JWT auth helpers, auth API routes (status/login/register), JWT middleware
-- [ ] 09-02-PLAN.md — Frontend: authStore, auth API wrappers, 401 interceptor, LoginPage, OnboardingWizard, App.tsx routing, README auth section
-
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Subprocess Foundation | v1.0 | 3/3 | Complete | 2026-03-07 |
-| 2. SQLite State Layer | v1.0 | 2/2 | Complete | 2026-03-07 |
-| 3. Pipeline Runner | v1.0 | 3/4 | In Progress | - |
-| 4. Web API + Scheduler | v1.0 | 4/4 | Complete | 2026-03-08 |
-| 5. React UI | v1.0 | 6/6 | Complete | 2026-03-09 |
-| 6. Pipeline Reliability | v1.1 | 3/3 | Complete | 2026-03-17 |
-| 7. Job Management | v1.1 | 2/2 | Complete | 2026-03-17 |
-| 8. UI Enhancements | v1.1 | 2/2 | Complete | 2026-03-17 |
-| 9. Remote Access Auth | 2/2 | Complete   | 2026-03-18 | - |
