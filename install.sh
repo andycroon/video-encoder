@@ -49,6 +49,8 @@ pip install .
 echo ">>> Building frontend..."
 npm run build
 
+chmod +x start.sh
+
 echo ""
 echo "✓ Installation complete."
 echo ""

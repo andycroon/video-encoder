@@ -27,7 +27,7 @@ A cross-platform web application for batch video encoding with VMAF-targeted qua
 ```bash
 git clone <repo-url>
 cd video-encoder
-chmod +x install.sh start.sh
+chmod +x install.sh
 ./install.sh
 ```
 
