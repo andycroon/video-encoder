@@ -20,83 +20,52 @@ A cross-platform web application for batch video encoding with VMAF-targeted qua
 
 ---
 
-## Requirements
+## Installation
 
-### Python
+### 1. System prerequisites
 
-Python 3.9 or higher. Download from [python.org](https://www.python.org/downloads/).
+**Windows**
 
-```bash
-python3 --version
-```
+- Python 3.9+: download from [python.org](https://www.python.org/downloads/)
+- Node.js + npm: download from [nodejs.org](https://nodejs.org/)
+- ffmpeg: place `ffmpeg.exe` at `C:\ffmpeg\ffmpeg.exe` — use a full GPL build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) which includes libx264 and libvmaf
 
-### ffmpeg
-
-Must be built with **libx264** and **libvmaf** support.
-
-**Windows** — place `ffmpeg.exe` at `C:\ffmpeg\ffmpeg.exe`. Use a full GPL build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) which includes both codecs.
-
-**Linux** — the system ffmpeg on Ubuntu/Debian does **not** include libvmaf. Remove it and install a static build instead:
+**Ubuntu / Debian**
 
 ```bash
-# Remove the system ffmpeg if already installed
-sudo apt remove --purge ffmpeg
+# Python, pip, venv, and Node.js
+sudo apt update
+sudo apt install python3-full python3-pip nodejs npm
 
-# Download a static build with libvmaf included (amd64)
+# ffmpeg — the system package does NOT include libvmaf, install a static build
+sudo apt remove --purge ffmpeg   # remove system version if present
 wget https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-linux64-gpl.tar.xz
 tar -xf ffmpeg-master-latest-linux64-gpl.tar.xz
 sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/local/bin/
 sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+hash -r   # clear bash's cached path
 
-# Clear bash's cached path, then verify
-hash -r
-ffmpeg -version
-# Should show --enable-libvmaf in the configuration line
-```
-
-Alternatively, use John Van Sickle's static builds at [johnvansickle.com/ffmpeg](https://johnvansickle.com/ffmpeg/) which also include libvmaf.
-
-Verify both codecs are present:
-```bash
+# Verify libvmaf is present
 ffmpeg -version
 # Configuration line should include --enable-libx264 and --enable-libvmaf
 ```
 
-### Node.js and npm
-
-Required to build the frontend. Download from [nodejs.org](https://nodejs.org/) (LTS recommended).
+**macOS**
 
 ```bash
-node --version
-npm --version
+brew install python node ffmpeg
 ```
-
-### PySceneDetect
-
-```bash
-pip install "scenedetect[opencv]>=0.6.7,<0.7"
-scenedetect version
-```
-
-### Plex Transcoder (optional)
-
-Only required if you use the **EAC3** audio codec option. Expected at:
-```
-C:\Program Files\Plex\Plex Media Server\Plex Transcoder.exe
-```
-All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
 
 ---
 
-## Installation
+### 2. Clone and install
 
 ```bash
-# 1. Clone
 git clone <repo-url>
 cd video-encoder
 ```
 
-**2. Create and activate a virtual environment**
+Create and activate a virtual environment — this ensures `python`, `pip`, and `uvicorn` work consistently on every platform:
 
 ```bash
 # Linux / macOS
@@ -108,19 +77,30 @@ python -m venv venv
 venv\Scripts\activate
 ```
 
-Once the venv is active your prompt will show `(venv)`. All subsequent commands — `python`, `pip`, `uvicorn` — will use the venv automatically on every platform.
+Your prompt will show `(venv)` when active.
 
 ```bash
-# 3. Install the package
 pip install .
-
-# 4. Build the frontend
 npm run build
 ```
 
-The `npm run build` command installs frontend dependencies and produces `frontend/dist/`, which the backend serves automatically.
+> **Each new terminal session:** activate the venv before starting the server (`source venv/bin/activate` on Linux/macOS, `venv\Scripts\activate` on Windows).
 
-> **Remember to activate the venv** (`source venv/bin/activate` on Linux/macOS, `venv\Scripts\activate` on Windows) each time you open a new terminal before starting the server.
+### PySceneDetect
+
+PySceneDetect is installed automatically by `pip install .`. Verify it works:
+
+```bash
+scenedetect version
+```
+
+### Plex Transcoder (optional)
+
+Only required for the **EAC3** audio codec option. Expected at:
+```
+C:\Program Files\Plex\Plex Media Server\Plex Transcoder.exe
+```
+All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
 
 ---
 
