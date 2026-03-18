@@ -36,7 +36,7 @@ Declared values (multiples of 4 only):
 | xs | 4px | Icon gaps, inline padding |
 | sm | 8px | Field gap within form row, compact spacing |
 | md | 16px | Field label-to-input margin, form internal padding |
-| lg | 24px | Card padding (matching TopBar panel at `padding: 20px`) |
+| lg | 24px | Card padding |
 | xl | 32px | Vertical gap between form sections |
 | 2xl | 48px | Full-screen centering: vertical offset from center |
 | 3xl | 64px | Not used in this phase |
@@ -48,7 +48,7 @@ Exceptions:
 - Button height: 38px for secondary / 42px for primary submit (matches existing Add Job button pattern)
 - Touch target minimum: 44px for submit button on mobile viewport
 
-**Source:** Existing inline styles in `TopBar.tsx`, `JobCard.tsx` — heights 38/42px, padding 20/28px established.
+**Source:** Existing inline styles in `TopBar.tsx`, `JobCard.tsx` — heights 38/42px, padding 20/24px established.
 
 ---
 
@@ -62,6 +62,8 @@ Exceptions:
 | Display (page title: "VibeCoder Encoder") | 15px | 600 | 1 |
 
 **Source:** `index.css` base font-size 14px / line-height 1.5. `TopBar.tsx` label style: `fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase'`. App header span: `fontWeight: 600, fontSize: 15`.
+
+Note on 15px display size: The checker flagged that 15px (display) and 16px (heading) are 1px apart. Collapsing 15px into 16px was evaluated and rejected — `fontSize: 15` appears in four codebase files (`App.tsx`, `BulkActions.tsx`, `CancelDialog.tsx`, `DeleteJobDialog.tsx`). Changing the display size would contradict the established App header value. Scale remains 10/14/15/16px; the 15px display role is a direct mirror of the existing App header, not a freestanding design decision.
 
 Mono copy (username/path display): 14px at weight 400 — use body size, no separate mono size declared.
 
@@ -168,7 +170,7 @@ Conditional rendering at root level (no react-router dependency):
 └─────────────────────────────────────────┘
 ```
 
-- Card: `background: var(--panel)`, `border: 1px solid var(--border)`, `border-radius: 12px`, `padding: 28px`
+- Card: `background: var(--panel)`, `border: 1px solid var(--border)`, `border-radius: 12px`, `padding: 24px`
 - Full-screen wrapper: `min-height: 100vh`, `display: flex`, `align-items: center`, `justify-content: center`, `background: var(--bg)`
 - No "forgot password" link — single user, reset via SQLite CLI documented in README
 - Primary focal point: the "Sign In" button — sole use of accent blue on the screen draws the eye after the credential fields.
@@ -205,9 +207,11 @@ Conditional rendering at root level (no react-router dependency):
 └─────────────────────────────────────────┘
 ```
 
-- Same card styling as LoginPage
+- Card: `background: var(--panel)`, `border: 1px solid var(--border)`, `border-radius: 12px`, `padding: 24px`
+- Full-screen wrapper: `min-height: 100vh`, `display: flex`, `align-items: center`, `justify-content: center`, `background: var(--bg)`
 - No multi-step wizard navigation needed — content is minimal (3 fields), single step is sufficient
 - "Wizard feel" satisfied by dedicated full-screen layout + descriptive subheading copy
+- Primary focal point: the "Create Account" button — the sole accent-blue element on the screen. The "Set up your account" heading serves as the secondary visual anchor that orients the user before they interact with the form.
 
 ---
 
