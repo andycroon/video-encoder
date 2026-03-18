@@ -48,7 +48,8 @@ tar -xf ffmpeg-master-latest-linux64-gpl.tar.xz
 sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/local/bin/
 sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
 
-# Verify
+# Clear bash's cached path, then verify
+hash -r
 ffmpeg -version
 # Should show --enable-libvmaf in the configuration line
 ```
