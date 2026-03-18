@@ -63,7 +63,7 @@ Exceptions:
 
 **Source:** `index.css` base font-size 14px / line-height 1.5. `TopBar.tsx` label style: `fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase'`. App header span: `fontWeight: 600, fontSize: 15`.
 
-Mono copy (username/path display): 13px at weight 400.
+Mono copy (username/path display): 14px at weight 400 — use body size, no separate mono size declared.
 
 ---
 
@@ -171,6 +171,7 @@ Conditional rendering at root level (no react-router dependency):
 - Card: `background: var(--panel)`, `border: 1px solid var(--border)`, `border-radius: 12px`, `padding: 28px`
 - Full-screen wrapper: `min-height: 100vh`, `display: flex`, `align-items: center`, `justify-content: center`, `background: var(--bg)`
 - No "forgot password" link — single user, reset via SQLite CLI documented in README
+- Primary focal point: the "Sign In" button — sole use of accent blue on the screen draws the eye after the credential fields.
 
 ### OnboardingWizard Layout
 
@@ -182,7 +183,7 @@ Conditional rendering at root level (no react-router dependency):
 │  │  [logo svg]  VibeCoder  Encoder    │ │
 │  │                                    │ │
 │  │  Set up your account               │ │  ← 16px, weight 600, var(--txt)
-│  │  Create credentials to protect     │ │  ← 13px, var(--txt-3)
+│  │  Create credentials to protect     │ │  ← 14px, var(--txt-3)
 │  │  remote access to this instance.   │ │
 │  │                                    │ │
 │  │  ─────────────────────────────     │ │
