@@ -1,14 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TopBar from './components/TopBar';
 import { useTheme } from './hooks/useTheme';
 import JobList from './components/JobList';
 import ProfileModal from './components/ProfileModal';
 import SettingsModal from './components/SettingsModal';
+import useAuthStore from './store/authStore';
+import { checkAuthStatus } from './api/auth';
+import LoginPage from './components/LoginPage';
+import OnboardingWizard from './components/OnboardingWizard';
 
 export default function App() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+  const setupRequired = useAuthStore(s => s.setupRequired);
+  const setSetupRequired = useAuthStore(s => s.setSetupRequired);
+
+  useEffect(() => {
+    checkAuthStatus()
+      .then(data => setSetupRequired(data.setup_required))
+      .catch(() => setSetupRequired(false));
+  }, [setSetupRequired]);
+
+  // Loading — waiting for auth status check
+  if (setupRequired === null) {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />;
+  }
+
+  // First run — no users exist
+  if (setupRequired === true) {
+    return <OnboardingWizard />;
+  }
+
+  // User exists but no valid token
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--txt)' }}>
