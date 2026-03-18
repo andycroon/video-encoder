@@ -429,7 +429,9 @@ async def get_system_info():
 app.include_router(api)
 
 # Static file serving — MUST be last to avoid intercepting API routes
-_dist = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+# Use CWD-relative path so it works whether installed editable or not.
+# start.sh always runs from the project root, so CWD == project root.
+_dist = os.environ.get("FRONTEND_DIST", os.path.join(os.getcwd(), "frontend", "dist"))
 if os.path.isdir(_dist):
     _index = os.path.join(_dist, "index.html")
 
