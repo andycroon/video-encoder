@@ -10,7 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
 
+from encoder.auth import hash_password, verify_password, create_token, decode_token
 from encoder.cleanup import AutoCleanup
 from encoder.db import (
     init_db,
@@ -27,6 +30,9 @@ from encoder.db import (
     delete_profile_db,
     delete_job,
     delete_jobs_by_status,
+    has_any_user,
+    get_user_by_username,
+    create_user,
 )
 from encoder.scheduler import Scheduler
 from encoder.sse import event_bus
@@ -76,6 +82,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """JWT auth middleware. Protects all routes except /health and /api/auth/*.
+
+    SSE stream endpoints (/api/jobs/{id}/stream) cannot receive Authorization
+    headers from EventSource, so the middleware also accepts a ?token= query
+    parameter as a fallback for paths ending in '/stream'.
+    """
+
+    EXEMPT_PATHS = {"/health", "/api/auth/status", "/api/auth/login", "/api/auth/register"}
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+
+        # Exempt paths pass through
+        if path in self.EXEMPT_PATHS:
+            return await call_next(request)
+
+        # Check if auth is even enabled (any user exists)
+        if not await has_any_user(DB_PATH):
+            # No user set up yet — allow all requests (backward compatible)
+            return await call_next(request)
+
+        # Extract Bearer token from Authorization header
+        token = None
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+        # Fallback: accept ?token= query parameter for SSE stream endpoints
+        # EventSource API cannot send custom headers, so we pass the JWT as a query param
+        if token is None and path.endswith("/stream"):
+            token = request.query_params.get("token")
+
+        if token is None:
+            return StarletteResponse(
+                content='{"detail":"Not authenticated"}',
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+                media_type="application/json",
+            )
+
+        payload = decode_token(token)
+        if payload is None:
+            return StarletteResponse(
+                content='{"detail":"Invalid or expired token"}',
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+                media_type="application/json",
+            )
+
+        # Token valid — proceed
+        request.state.user = payload
+        return await call_next(request)
+
+
+app.add_middleware(AuthMiddleware)
+
 api = APIRouter(prefix="/api")
 
 
@@ -99,9 +163,50 @@ class BulkDeleteBody(BaseModel):
     status: str  # "DONE" or "FAILED"
 
 
+class AuthLogin(BaseModel):
+    username: str
+    password: str
+
+
+class AuthRegister(BaseModel):
+    username: str
+    password: str
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@api.get("/auth/status")
+async def auth_status():
+    """Public endpoint: returns whether initial setup is required."""
+    setup_required = not await has_any_user(DB_PATH)
+    return {"setup_required": setup_required}
+
+
+@api.post("/auth/login")
+async def auth_login(body: AuthLogin):
+    """Public endpoint: validate credentials and return JWT."""
+    user = await get_user_by_username(DB_PATH, body.username)
+    if user is None or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    token = create_token(user["id"], user["username"])
+    return {"access_token": token}
+
+
+@api.post("/auth/register", status_code=201)
+async def auth_register(body: AuthRegister):
+    """Public endpoint (first-run only): create the initial user account."""
+    # Only allow registration if no user exists yet
+    if await has_any_user(DB_PATH):
+        raise HTTPException(status_code=403, detail="Account already exists.")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    pw_hash = hash_password(body.password)
+    user = await create_user(DB_PATH, body.username, pw_hash)
+    token = create_token(user["id"], user["username"])
+    return {"access_token": token}
 
 
 @api.get("/settings")
