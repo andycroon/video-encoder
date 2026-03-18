@@ -8,7 +8,7 @@ VibeCoder Video Encoder — batch x264 encoding with VMAF-targeted quality, desi
 2. **Install:**
    ```bash
    pip install -e .
-   .\build.ps1
+   npm run build
    ```
 3. **Run:**
    ```bash
