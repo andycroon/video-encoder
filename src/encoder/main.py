@@ -100,6 +100,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path in self.EXEMPT_PATHS:
             return await call_next(request)
 
+        # Static assets (frontend HTML, JS, CSS) never require a token
+        if not path.startswith("/api/"):
+            return await call_next(request)
+
         # Check if auth is even enabled (any user exists)
         if not await has_any_user(DB_PATH):
             # No user set up yet — allow all requests (backward compatible)
