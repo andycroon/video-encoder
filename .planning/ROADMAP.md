@@ -183,7 +183,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Backend: extend /api/browse with size+modified_at, add /api/files/rename, /api/files/move, /api/files/copy endpoints; frontend API types and functions
+- [x] 10-01-PLAN.md — Backend: extend /api/browse with size+modified_at, add /api/files/rename, /api/files/move, /api/files/copy endpoints; frontend API types and functions
 - [ ] 10-02-PLAN.md — FileBrowser dual-panel component with navigation, file metadata, multi-select, move/copy action bar, conflict dialog; Files tab wiring in App.tsx
 - [ ] 10-03-PLAN.md — Context menu (Rename, Move, Copy, Add to Queue), inline rename with pencil icon, job submission integration; human verification checkpoint
 
@@ -203,4 +203,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 7. Job Management | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 8. UI Enhancements | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 9. Remote Access Auth | v1.1 | 2/2 | Complete | 2026-03-18 |
-| 10. File Browser | v1.1 | 0/3 | Planned | - |
+| 10. File Browser | v1.1 | 1/3 | In Progress|  |
