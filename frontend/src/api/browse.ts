@@ -6,6 +6,8 @@ export interface BrowseEntry {
   name: string;
   path: string;
   is_dir: boolean;
+  size: number | null;        // bytes, null for directories
+  modified_at: string | null; // ISO 8601 string, null for directories
 }
 
 export interface BrowseResult {
