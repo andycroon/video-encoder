@@ -15,6 +15,7 @@ A cross-platform web application for batch video encoding with VMAF-targeted qua
 - **History view** — completed jobs separated from the active queue with VMAF score charts
 - **Watch folder** — drop files in a folder and they are auto-queued
 - **Encoder profiles** — save named configurations with custom VMAF targets, CRF bounds, and x264 parameters
+- **File browser** — dual-panel browser with directory navigation, rename, move, copy, create folder, and add-to-queue
 - **Authentication** — JWT-protected UI for safe remote exposure
 - **Dark / light mode**
 
@@ -57,6 +58,16 @@ Only required for the **EAC3** audio codec option. Expected at:
 C:\Program Files\Plex\Plex Media Server\Plex Transcoder.exe
 ```
 All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
+
+---
+
+## Updating
+
+```bash
+./update.sh
+```
+
+Pulls the latest code, reinstalls Python and npm dependencies if changed, rebuilds the frontend, and restarts the service. Recreates the Python venv automatically if the Python version changed.
 
 ---
 
@@ -144,6 +155,17 @@ Completed and failed jobs appear in the **History** tab, separate from the activ
 ### Watch folder
 
 Configure a directory path in **Settings → Watch Folder**. Any `.mkv` file dropped into that folder is automatically queued within ~10 seconds.
+
+### File browser
+
+Click the **Files** tab in the header to open the dual-panel file browser.
+
+- **Navigate** — click directories to drill in; `..` goes up; breadcrumb shows current path
+- **Select files** — checkboxes on the left panel; select-all checkbox in the header
+- **Move / Copy** — select files in the left panel, navigate the right panel to the destination, click **Move →** or **Copy →** in the action bar; conflicts show a dialog per file
+- **Rename** — right-click a file → Rename, or hover and click the pencil icon; edit inline, Enter to confirm, Escape to cancel
+- **Create folder** — navigate to a directory, click **+ Folder** in the panel header, type a name, Enter to create
+- **Add to Queue** — right-click a file → Add to Queue; uses the default encoder profile
 
 ---
 
