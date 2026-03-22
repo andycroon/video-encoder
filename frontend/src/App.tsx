@@ -8,10 +8,12 @@ import useAuthStore from './store/authStore';
 import { checkAuthStatus } from './api/auth';
 import LoginPage from './components/LoginPage';
 import OnboardingWizard from './components/OnboardingWizard';
+import FileBrowser from './components/FileBrowser';
 
 export default function App() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'encoder' | 'files'>('encoder');
   const { theme, toggleTheme } = useTheme();
 
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
@@ -60,6 +62,40 @@ export default function App() {
             <span style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--txt-3)', marginLeft: 2 }}>Encoder</span>
           </div>
 
+          {/* Tab switcher */}
+          <div style={{ display: 'flex', gap: 2, marginLeft: 24 }}>
+            <button
+              onClick={() => setActiveTab('encoder')}
+              style={{
+                padding: '6px 16px',
+                fontSize: 13,
+                fontWeight: 500,
+                background: activeTab === 'encoder' ? 'var(--raised)' : 'transparent',
+                border: activeTab === 'encoder' ? '1px solid var(--border)' : '1px solid transparent',
+                borderRadius: 5,
+                color: activeTab === 'encoder' ? 'var(--txt)' : 'var(--txt-3)',
+                cursor: 'pointer',
+              }}
+            >
+              Encoder
+            </button>
+            <button
+              onClick={() => setActiveTab('files')}
+              style={{
+                padding: '6px 16px',
+                fontSize: 13,
+                fontWeight: 500,
+                background: activeTab === 'files' ? 'var(--raised)' : 'transparent',
+                border: activeTab === 'files' ? '1px solid var(--border)' : '1px solid transparent',
+                borderRadius: 5,
+                color: activeTab === 'files' ? 'var(--txt)' : 'var(--txt-3)',
+                cursor: 'pointer',
+              }}
+            >
+              Files
+            </button>
+          </div>
+
           <div style={{ flex: 1 }} />
 
           <span className="mono" style={{ fontSize: 11, color: 'var(--txt-3)' }}>v1.1</span>
@@ -67,17 +103,22 @@ export default function App() {
       </header>
 
       {/* ── Main ───────────────────────────────────────── */}
-      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 28px' }}>
-        <TopBar
-          onEditProfiles={() => setProfileModalOpen(true)}
-          onOpenSettings={() => setSettingsModalOpen(true)}
-          onToggleTheme={toggleTheme}
-          theme={theme}
-        />
-
-        <div style={{ marginTop: 20 }}>
-          <JobList />
-        </div>
+      <main style={{ maxWidth: activeTab === 'files' ? undefined : 1100, margin: activeTab === 'files' ? undefined : '0 auto', padding: activeTab === 'files' ? '0' : '28px 28px' }}>
+        {activeTab === 'encoder' ? (
+          <>
+            <TopBar
+              onEditProfiles={() => setProfileModalOpen(true)}
+              onOpenSettings={() => setSettingsModalOpen(true)}
+              onToggleTheme={toggleTheme}
+              theme={theme}
+            />
+            <div style={{ marginTop: 20 }}>
+              <JobList />
+            </div>
+          </>
+        ) : (
+          <FileBrowser />
+        )}
       </main>
 
       <ProfileModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
