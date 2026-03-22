@@ -44,6 +44,19 @@ export async function moveFiles(
   return res.json();
 }
 
+export async function createFolder(path: string, name: string): Promise<{ path: string; name: string }> {
+  const res = await authFetch(`${BASE}/files/mkdir`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, name }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ detail: 'Create folder failed' }));
+    throw new Error(data.detail || `mkdir failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function copyFiles(
   paths: string[],
   destination: string,

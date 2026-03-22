@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { browse } from '../api/browse';
 import type { BrowseEntry } from '../api/browse';
-import { moveFiles, copyFiles, renameFile } from '../api/files';
+import { moveFiles, copyFiles, renameFile, createFolder } from '../api/files';
 import type { FileOpResult } from '../api/files';
 import { submitJob } from '../api/jobs';
 import { useJobsStore } from '../store/jobsStore';
@@ -153,6 +153,7 @@ interface FilePanelProps {
   selectedPaths: Set<string>;
   onSelectionChange: (paths: Set<string>) => void;
   onContextMenu: (e: React.MouseEvent, entry: BrowseEntry) => void;
+  onFolderCreated: () => void;
   renamingPath: string | null;
   renameValue: string;
   onRenameChange: (v: string) => void;
@@ -168,6 +169,7 @@ function FilePanel({
   selectedPaths,
   onSelectionChange,
   onContextMenu,
+  onFolderCreated,
   renamingPath,
   renameValue,
   onRenameChange,
@@ -180,6 +182,7 @@ function FilePanel({
   const [error, setError] = useState('');
   const [hovered, setHovered] = useState<string | null>(null);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState<string | null>(null);
 
   const load = useCallback(async (p: string) => {
     setLoading(true);
@@ -252,8 +255,24 @@ function FilePanel({
         <span className="mono" style={{ fontSize: 12, color: path ? 'var(--txt-2)' : 'var(--txt-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {path || 'Computer'}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--txt-3)' }}>
-          {side === 'left' ? 'Source' : 'Destination'}
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {path && (
+            <button
+              onClick={() => setNewFolderName('')}
+              title="New Folder"
+              style={{
+                height: 22, padding: '0 8px',
+                background: 'transparent', border: '1px solid var(--border)',
+                borderRadius: 4, cursor: 'pointer', fontSize: 11, color: 'var(--txt-3)',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              + Folder
+            </button>
+          )}
+          <span style={{ fontSize: 11, color: 'var(--txt-3)' }}>
+            {side === 'left' ? 'Source' : 'Destination'}
+          </span>
         </span>
       </div>
 
@@ -299,6 +318,47 @@ function FilePanel({
         )}
         {!loading && !error && (
           <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+
+            {/* New folder input row */}
+            {newFolderName !== null && (
+              <li style={{ borderBottom: '1px solid var(--border-lo)', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FolderSvg />
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={async e => {
+                    if (e.key === 'Escape') { setNewFolderName(null); return; }
+                    if (e.key === 'Enter') {
+                      const name = newFolderName.trim();
+                      if (!name) return;
+                      setNewFolderName(null);
+                      try {
+                        await createFolder(path, name);
+                        onFolderCreated();
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : 'Failed';
+                        alert(`Create folder failed: ${msg}`);
+                      }
+                    }
+                  }}
+                  onBlur={() => setNewFolderName(null)}
+                  autoFocus
+                  placeholder="New folder name"
+                  style={{
+                    flex: 1,
+                    background: 'var(--bg)',
+                    border: '1px solid #4080ff',
+                    borderRadius: 3,
+                    padding: '2px 6px',
+                    fontSize: 13,
+                    color: 'var(--txt)',
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </li>
+            )}
 
             {/* Parent (..) row */}
             {canGoUp && (
@@ -715,6 +775,7 @@ export default function FileBrowser() {
               selectedPaths={selectedPaths}
               onSelectionChange={setSelectedPaths}
               onContextMenu={handleContextMenu}
+              onFolderCreated={refreshBoth}
               renamingPath={renamingPath}
               renameValue={renameValue}
               onRenameChange={setRenameValue}
@@ -805,6 +866,7 @@ export default function FileBrowser() {
             selectedPaths={new Set()}
             onSelectionChange={() => {}}
             onContextMenu={handleContextMenu}
+            onFolderCreated={refreshBoth}
             renamingPath={renamingPath}
             renameValue={renameValue}
             onRenameChange={setRenameValue}

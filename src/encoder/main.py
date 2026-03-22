@@ -501,6 +501,22 @@ async def copy_files(body: dict):
     return {"results": results}
 
 
+@api.post("/files/mkdir")
+async def make_directory(body: dict):
+    import pathlib
+    parent = pathlib.Path(body.get("path", ""))
+    name = body.get("name", "").strip()
+    if not name or "/" in name or "\\" in name:
+        raise HTTPException(status_code=400, detail="Invalid folder name")
+    if not parent.is_dir():
+        raise HTTPException(status_code=404, detail="Parent directory not found")
+    new_dir = parent / name
+    if new_dir.exists():
+        raise HTTPException(status_code=409, detail="Already exists")
+    new_dir.mkdir()
+    return {"path": str(new_dir), "name": name}
+
+
 @api.get("/system")
 async def get_system_info():
     import os
