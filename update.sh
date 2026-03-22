@@ -6,6 +6,10 @@ INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo ">>> Pulling latest changes..."
 git -C "$INSTALL_DIR" pull
 
+echo ">>> Installing Python dependencies..."
+source "$INSTALL_DIR/venv/bin/activate"
+pip install -e "$INSTALL_DIR" -q
+
 echo ">>> Rebuilding frontend..."
 npm run build --prefix "$INSTALL_DIR/frontend"
 
