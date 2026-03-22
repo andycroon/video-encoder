@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { browse } from '../api/browse';
 import type { BrowseEntry } from '../api/browse';
-import { moveFiles, copyFiles } from '../api/files';
+import { moveFiles, copyFiles, renameFile } from '../api/files';
 import type { FileOpResult } from '../api/files';
+import { submitJob } from '../api/jobs';
+import { useJobsStore } from '../store/jobsStore';
 
 // ── SVG icons (copied from FilePicker.tsx) ─────────────────────────────────
 
@@ -26,6 +28,12 @@ const FileSvg = () => (
     <path d="M9 0v5h5" fill="none" stroke="#374151" strokeWidth="0.5"/>
     <rect x="3" y="8"  width="8" height="1" rx="0.5" fill="#4b5563"/>
     <rect x="3" y="11" width="6" height="1" rx="0.5" fill="#374151"/>
+  </svg>
+);
+
+const PencilSvg = () => (
+  <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+    <path d="M9.5 1.5 11.5 3.5 4 11 1 12 2 9 9.5 1.5Z" stroke="var(--txt-3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -122,6 +130,20 @@ function ConflictDialog({ filename, onOverwrite, onSkip, onCancel }: ConflictDia
   );
 }
 
+// ── menuItemStyle helper ─────────────────────────────────────────────────────
+
+const menuItemStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 14px',
+  background: 'transparent',
+  border: 'none',
+  textAlign: 'left',
+  cursor: 'pointer',
+  fontSize: 13,
+  color: 'var(--txt-2)',
+  display: 'block',
+};
+
 // ── FilePanel ────────────────────────────────────────────────────────────────
 
 interface FilePanelProps {
@@ -130,14 +152,34 @@ interface FilePanelProps {
   side: 'left' | 'right';
   selectedPaths: Set<string>;
   onSelectionChange: (paths: Set<string>) => void;
+  onContextMenu: (e: React.MouseEvent, entry: BrowseEntry) => void;
+  renamingPath: string | null;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameKeyDown: (e: React.KeyboardEvent, entry: BrowseEntry) => void;
+  onRenameBlur: () => void;
+  refreshKey: number;
 }
 
-function FilePanel({ path, onNavigate, side, selectedPaths, onSelectionChange }: FilePanelProps) {
+function FilePanel({
+  path,
+  onNavigate,
+  side,
+  selectedPaths,
+  onSelectionChange,
+  onContextMenu,
+  renamingPath,
+  renameValue,
+  onRenameChange,
+  onRenameKeyDown,
+  onRenameBlur,
+}: FilePanelProps) {
   const [entries, setEntries] = useState<BrowseEntry[]>([]);
   const [parent, setParent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hovered, setHovered] = useState<string | null>(null);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   const load = useCallback(async (p: string) => {
     setLoading(true);
@@ -218,7 +260,7 @@ function FilePanel({ path, onNavigate, side, selectedPaths, onSelectionChange }:
       {/* Column headers */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: side === 'left' ? '28px 20px 1fr 90px 90px' : '20px 1fr 90px 90px',
+        gridTemplateColumns: side === 'left' ? '28px 20px 1fr 90px 90px 28px' : '20px 1fr 90px 90px 28px',
         alignItems: 'center',
         padding: '0 14px',
         height: 30,
@@ -240,13 +282,14 @@ function FilePanel({ path, onNavigate, side, selectedPaths, onSelectionChange }:
         <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--txt-3)' }}>Name</span>
         <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--txt-3)', textAlign: 'right' }}>Size</span>
         <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--txt-3)', textAlign: 'right' }}>Modified</span>
+        <span /> {/* pencil column */}
       </div>
 
       {/* File list */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 80, color: 'var(--txt-3)', fontSize: 13 }}>
-            Loading…
+            Loading...
           </div>
         )}
         {error && (
@@ -302,21 +345,24 @@ function FilePanel({ path, onNavigate, side, selectedPaths, onSelectionChange }:
             {/* File rows */}
             {files.map(e => {
               const isSelected = selectedPaths.has(e.path);
+              const isRenaming = renamingPath === e.path;
+              const showPencil = hoveredRow === e.path && !isRenaming;
               return (
                 <li key={e.path} style={{ borderBottom: '1px solid var(--border-lo)' }}>
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: side === 'left' ? '28px 20px 1fr 90px 90px' : '20px 1fr 90px 90px',
+                      gridTemplateColumns: side === 'left' ? '28px 20px 1fr 90px 90px 28px' : '20px 1fr 90px 90px 28px',
                       alignItems: 'center',
                       padding: '8px 14px',
-                      background: isSelected ? 'rgba(64,128,255,0.12)' : hovered === e.path ? 'rgba(255,255,255,0.03)' : 'transparent',
+                      background: isSelected ? 'rgba(64,128,255,0.12)' : hoveredRow === e.path ? 'rgba(255,255,255,0.03)' : 'transparent',
                       cursor: side === 'left' ? 'pointer' : 'default',
                       gap: 8,
                     }}
-                    onMouseEnter={() => setHovered(e.path)}
-                    onMouseLeave={() => setHovered(null)}
-                    onClick={() => { if (side === 'left') handleToggle(e.path); }}
+                    onMouseEnter={() => { setHoveredRow(e.path); setHovered(e.path); }}
+                    onMouseLeave={() => { setHoveredRow(null); setHovered(null); }}
+                    onClick={() => { if (side === 'left' && !isRenaming) handleToggle(e.path); }}
+                    onContextMenu={(ev) => { ev.preventDefault(); onContextMenu(ev, e); }}
                   >
                     {side === 'left' && (
                       <input
@@ -328,16 +374,39 @@ function FilePanel({ path, onNavigate, side, selectedPaths, onSelectionChange }:
                       />
                     )}
                     <FileSvg />
-                    <span
-                      className="mono"
-                      style={{
-                        fontSize: 12,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        color: isSelected ? '#93c5fd' : 'var(--txt)',
-                      }}
-                    >
-                      {e.name}
-                    </span>
+                    {isRenaming ? (
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(ev) => onRenameChange(ev.target.value)}
+                        onKeyDown={(ev) => onRenameKeyDown(ev, e)}
+                        onBlur={onRenameBlur}
+                        autoFocus
+                        onClick={ev => ev.stopPropagation()}
+                        style={{
+                          flex: 1,
+                          background: 'var(--bg)',
+                          border: '1px solid #4080ff',
+                          borderRadius: 3,
+                          padding: '2px 6px',
+                          fontSize: 13,
+                          color: 'var(--txt)',
+                          outline: 'none',
+                          fontFamily: 'inherit',
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className="mono"
+                        style={{
+                          fontSize: 12,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          color: isSelected ? '#93c5fd' : 'var(--txt)',
+                        }}
+                      >
+                        {e.name}
+                      </span>
+                    )}
                     <span
                       className="mono"
                       style={{ fontSize: 11, color: 'var(--txt-3)', textAlign: 'right', paddingRight: 4 }}
@@ -350,6 +419,22 @@ function FilePanel({ path, onNavigate, side, selectedPaths, onSelectionChange }:
                     >
                       {formatDate(e.modified_at)}
                     </span>
+                    {/* Pencil icon */}
+                    <button
+                      onClick={(ev) => { ev.stopPropagation(); onContextMenu(ev as unknown as React.MouseEvent, e); }}
+                      title="Rename"
+                      style={{
+                        width: 22, height: 22,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'transparent', border: 'none',
+                        cursor: 'pointer', borderRadius: 3, padding: 0,
+                        opacity: showPencil ? 1 : 0,
+                        transition: 'opacity 0.1s',
+                        pointerEvents: showPencil ? 'auto' : 'none',
+                      }}
+                    >
+                      <PencilSvg />
+                    </button>
                   </div>
                 </li>
               );
@@ -383,6 +468,14 @@ interface ConflictState {
   skipped: string[];
 }
 
+// ── Context menu state ───────────────────────────────────────────────────────
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  entry: BrowseEntry;
+}
+
 // ── FileBrowser (top-level) ──────────────────────────────────────────────────
 
 export default function FileBrowser() {
@@ -395,11 +488,123 @@ export default function FileBrowser() {
   const [leftRefreshKey, setLeftRefreshKey]   = useState(0);
   const [rightRefreshKey, setRightRefreshKey] = useState(0);
 
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Inline rename state
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  // Zustand store selectors (individual — see MEMORY.md)
+  const upsertJob = useJobsStore(s => s.upsertJob);
+  const profiles = useJobsStore(s => s.profiles);
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null); };
+    document.addEventListener('click', handleClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
+
   const refreshBoth = () => {
     setLeftRefreshKey(k => k + 1);
     setRightRefreshKey(k => k + 1);
     setSelectedPaths(new Set());
   };
+
+  // ── Inline rename handlers ────────────────────────────────────────────────
+
+  const startRename = useCallback((entry: BrowseEntry) => {
+    setContextMenu(null);
+    setRenamingPath(entry.path);
+    setRenameValue(entry.name);
+  }, []);
+
+  const cancelRename = useCallback(() => {
+    setRenamingPath(null);
+    setRenameValue('');
+  }, []);
+
+  const confirmRename = useCallback(async (entry: BrowseEntry, value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === entry.name) {
+      cancelRename();
+      return;
+    }
+    setRenamingPath(null);
+    setRenameValue('');
+    try {
+      await renameFile(entry.path, trimmed);
+      refreshBoth();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Rename failed';
+      if (msg.includes('409') || msg.toLowerCase().includes('exists')) {
+        alert(`A file named "${trimmed}" already exists in this directory.`);
+      } else {
+        alert(`Rename failed: ${msg}`);
+      }
+    }
+  }, [cancelRename]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRenameKeyDown = useCallback((e: React.KeyboardEvent, entry: BrowseEntry) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmRename(entry, renameValue);
+    }
+    if (e.key === 'Escape') {
+      cancelRename();
+    }
+  }, [renameValue, confirmRename, cancelRename]);
+
+  // ── Context menu handlers ─────────────────────────────────────────────────
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, entry: BrowseEntry) => {
+    // Pencil button passes a synthetic event; for real right-clicks preventDefault already called in row handler
+    setContextMenu({ x: e.clientX, y: e.clientY, entry });
+    // If triggered from pencil icon, treat as rename shortcut — show menu at icon position
+  }, []);
+
+  const handleContextMove = useCallback((entry: BrowseEntry) => {
+    setContextMenu(null);
+    const otherPath = entry.path.startsWith(leftPath) ? rightPath : leftPath;
+    if (!otherPath) {
+      alert('Navigate the other panel to a destination directory first.');
+      return;
+    }
+    executeOp('move', [entry.path], otherPath);
+  }, [leftPath, rightPath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleContextCopy = useCallback((entry: BrowseEntry) => {
+    setContextMenu(null);
+    const otherPath = entry.path.startsWith(leftPath) ? rightPath : leftPath;
+    if (!otherPath) {
+      alert('Navigate the other panel to a destination directory first.');
+      return;
+    }
+    executeOp('copy', [entry.path], otherPath);
+  }, [leftPath, rightPath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddToQueue = useCallback(async (entry: BrowseEntry) => {
+    setContextMenu(null);
+    const profile = profiles.find(p => p.is_default) ?? profiles[0];
+    if (!profile) {
+      alert('No encoding profile configured. Please add a profile in Settings.');
+      return;
+    }
+    try {
+      const job = await submitJob(entry.path, profile.config as Record<string, unknown>);
+      upsertJob(job);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to add to queue';
+      alert(`Add to Queue failed: ${msg}`);
+    }
+  }, [profiles, upsertJob]);
 
   // ── Execute a move or copy, handle conflicts ──────────────────────────────
 
@@ -509,6 +714,13 @@ export default function FileBrowser() {
               side="left"
               selectedPaths={selectedPaths}
               onSelectionChange={setSelectedPaths}
+              onContextMenu={handleContextMenu}
+              renamingPath={renamingPath}
+              renameValue={renameValue}
+              onRenameChange={setRenameValue}
+              onRenameKeyDown={handleRenameKeyDown}
+              onRenameBlur={cancelRename}
+              refreshKey={leftRefreshKey}
             />
           </div>
 
@@ -592,9 +804,69 @@ export default function FileBrowser() {
             side="right"
             selectedPaths={new Set()}
             onSelectionChange={() => {}}
+            onContextMenu={handleContextMenu}
+            renamingPath={renamingPath}
+            renameValue={renameValue}
+            onRenameChange={setRenameValue}
+            onRenameKeyDown={handleRenameKeyDown}
+            onRenameBlur={cancelRename}
+            refreshKey={rightRefreshKey}
           />
         </div>
       </div>
+
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: 'var(--raised)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            zIndex: 200,
+            minWidth: 160,
+            padding: '4px 0',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => startRename(contextMenu.entry)}
+            style={menuItemStyle}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            Rename
+          </button>
+          <button
+            onClick={() => handleContextMove(contextMenu.entry)}
+            style={menuItemStyle}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            Move to &rarr;
+          </button>
+          <button
+            onClick={() => handleContextCopy(contextMenu.entry)}
+            style={menuItemStyle}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            Copy to &rarr;
+          </button>
+          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+          <button
+            onClick={() => handleAddToQueue(contextMenu.entry)}
+            style={menuItemStyle}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            Add to Queue
+          </button>
+        </div>
+      )}
 
       {/* Conflict dialog */}
       {conflict && (
