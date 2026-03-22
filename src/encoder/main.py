@@ -4,6 +4,7 @@ from __future__ import annotations
 import json as _json
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -410,7 +411,23 @@ async def browse_filesystem(path: str = ""):
             try:
                 is_dir = item.is_dir()
                 if is_dir or item.suffix.lower() in {".mkv", ".mp4", ".mov", ".avi"}:
-                    entries.append({"name": item.name, "path": str(item), "is_dir": is_dir})
+                    if is_dir:
+                        entries.append({
+                            "name": item.name,
+                            "path": str(item),
+                            "is_dir": True,
+                            "size": None,
+                            "modified_at": None,
+                        })
+                    else:
+                        st = item.stat()
+                        entries.append({
+                            "name": item.name,
+                            "path": str(item),
+                            "is_dir": False,
+                            "size": st.st_size,
+                            "modified_at": datetime.fromtimestamp(st.st_mtime).isoformat(),
+                        })
             except PermissionError:
                 continue
     except PermissionError:
@@ -418,6 +435,70 @@ async def browse_filesystem(path: str = ""):
 
     parent = str(p.parent) if str(p.parent) != str(p) else None
     return {"path": str(p), "parent": parent, "entries": entries}
+
+
+@api.post("/files/rename")
+async def rename_file(body: dict):
+    import pathlib
+    old_path = pathlib.Path(body.get("path", ""))
+    new_name = body.get("new_name", "").strip()
+    if not old_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    if not new_name or "/" in new_name or "\\" in new_name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    new_path = old_path.parent / new_name
+    if new_path.exists():
+        raise HTTPException(status_code=409, detail="File already exists")
+    old_path.rename(new_path)
+    return {"path": str(new_path), "name": new_name}
+
+
+@api.post("/files/move")
+async def move_files(body: dict):
+    import pathlib
+    import shutil
+    paths = body.get("paths", [])
+    destination = pathlib.Path(body.get("destination", ""))
+    overwrite = body.get("overwrite", False)
+    if not destination.is_dir():
+        raise HTTPException(status_code=404, detail="Destination not found")
+    results = []
+    for p in paths:
+        src = pathlib.Path(p)
+        if not src.exists():
+            results.append({"path": p, "status": "not_found"})
+            continue
+        dest_file = destination / src.name
+        if dest_file.exists() and not overwrite:
+            results.append({"path": p, "status": "conflict", "conflict_name": src.name})
+            continue
+        shutil.move(str(src), str(dest_file))
+        results.append({"path": str(dest_file), "status": "ok"})
+    return {"results": results}
+
+
+@api.post("/files/copy")
+async def copy_files(body: dict):
+    import pathlib
+    import shutil
+    paths = body.get("paths", [])
+    destination = pathlib.Path(body.get("destination", ""))
+    overwrite = body.get("overwrite", False)
+    if not destination.is_dir():
+        raise HTTPException(status_code=404, detail="Destination not found")
+    results = []
+    for p in paths:
+        src = pathlib.Path(p)
+        if not src.exists():
+            results.append({"path": p, "status": "not_found"})
+            continue
+        dest_file = destination / src.name
+        if dest_file.exists() and not overwrite:
+            results.append({"path": p, "status": "conflict", "conflict_name": src.name})
+            continue
+        shutil.copy2(str(src), str(dest_file))
+        results.append({"path": str(dest_file), "status": "ok"})
+    return {"results": results}
 
 
 @api.get("/system")
