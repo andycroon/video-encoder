@@ -544,6 +544,7 @@ export default function FileBrowser() {
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [opLoading, setOpLoading] = useState(false);
   const [opError, setOpError]     = useState('');
+  const [opProgress, setOpProgress] = useState<{ done: number; total: number; current: string } | null>(null);
   const [conflict, setConflict]   = useState<ConflictState | null>(null);
   const [leftRefreshKey, setLeftRefreshKey]   = useState(0);
   const [rightRefreshKey, setRightRefreshKey] = useState(0);
@@ -671,29 +672,32 @@ export default function FileBrowser() {
   const executeOp = async (op: 'move' | 'copy', paths: string[], destination: string, overwrite = false) => {
     setOpLoading(true);
     setOpError('');
-    try {
-      const result: FileOpResult = op === 'move'
-        ? await moveFiles(paths, destination, overwrite)
-        : await copyFiles(paths, destination, overwrite);
+    const conflicts: string[] = [];
 
-      const conflicts = result.results.filter(r => r.status === 'conflict');
-      if (conflicts.length > 0) {
-        // Show conflict dialog for first conflict
-        setConflict({
-          pending: conflicts.map(c => c.path),
-          destination,
-          operation: op,
-          resolved: [],
-          skipped: [],
-        });
-      } else {
-        // All done
-        refreshBoth();
+    for (let i = 0; i < paths.length; i++) {
+      const p = paths[i];
+      setOpProgress({ done: i, total: paths.length, current: p.split(/[\\/]/).pop() ?? p });
+      try {
+        const result: FileOpResult = op === 'move'
+          ? await moveFiles([p], destination, overwrite)
+          : await copyFiles([p], destination, overwrite);
+        const fileConflicts = result.results.filter(r => r.status === 'conflict');
+        if (fileConflicts.length > 0) conflicts.push(...fileConflicts.map(c => c.path));
+      } catch {
+        setOpError(`Failed on: ${p.split(/[\\/]/).pop() ?? p}`);
+        setOpLoading(false);
+        setOpProgress(null);
+        return;
       }
-    } catch {
-      setOpError('Operation failed. Please try again.');
-    } finally {
-      setOpLoading(false);
+    }
+
+    setOpProgress(null);
+    setOpLoading(false);
+
+    if (conflicts.length > 0) {
+      setConflict({ pending: conflicts, destination, operation: op, resolved: [], skipped: [] });
+    } else {
+      refreshBoth();
     }
   };
 
@@ -796,10 +800,19 @@ export default function FileBrowser() {
               marginTop: 6,
               flexShrink: 0,
             }}>
-              <span style={{ fontSize: 13, color: 'var(--txt-2)', flex: 1 }}>
-                {selectedPaths.size} selected
-              </span>
-              {!rightPath && (
+              {opProgress ? (
+                <span style={{ fontSize: 13, color: 'var(--txt-2)', flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: 'var(--txt-3)', fontSize: 12 }}>{opProgress.done}/{opProgress.total}</span>
+                  <span className="mono" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
+                    {opProgress.current}
+                  </span>
+                </span>
+              ) : (
+                <span style={{ fontSize: 13, color: 'var(--txt-2)', flex: 1 }}>
+                  {selectedPaths.size} selected
+                </span>
+              )}
+              {!opProgress && !rightPath && (
                 <span style={{ fontSize: 12, color: '#e67e22' }}>Navigate destination panel to enable Move/Copy</span>
               )}
               <button
