@@ -56,7 +56,7 @@ def stop():
                            capture_output=True)
         except Exception:
             pass
-    # Also kill by port as fallback
+    # Kill anything on the port
     subprocess.run(
         ["powershell", "-NoProfile", "-Command",
          "try { Get-NetTCPConnection -LocalPort 8765 -State Listen -EA Stop"
@@ -65,19 +65,28 @@ def stop():
     )
     if os.path.exists(PID_FILE):
         os.remove(PID_FILE)
-    # Give Windows time to release the port
-    time.sleep(1)
+
+    # Wait for the port to actually be free (up to 8s)
+    for i in range(8):
+        if not is_port_open():
+            return
+        time.sleep(1)
+
+    print(f"ERROR: Port {PORT} is still occupied after stopping. Cannot start new server.")
+    sys.exit(1)
 
 
 def start():
     if not os.path.exists(UVICORN):
         print(f"ERROR: uvicorn not found at {UVICORN}")
+        print(f"       Run install steps from README first.")
         sys.exit(1)
 
     log = open(LOG_FILE, "w")
     proc = subprocess.Popen(
         [UVICORN, "encoder.main:app", "--host", "0.0.0.0", "--port", str(PORT)],
         cwd=SCRIPT_DIR,
+        stdin=subprocess.DEVNULL,
         stdout=log,
         stderr=log,
         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
@@ -86,26 +95,28 @@ def start():
         f.write(str(proc.pid))
     print(f"   Waiting for server (PID {proc.pid}) to come up...")
 
-    # Wait up to 15s for the server to accept connections
-    for i in range(15):
+    # Wait up to 20s for server to accept connections
+    for i in range(20):
         time.sleep(1)
         if proc.poll() is not None:
             log.close()
-            print(f"ERROR: Server process exited early. Last log lines:")
+            print(f"ERROR: Server process exited early (code {proc.poll()}).")
+            print(f"       Last log lines from {LOG_FILE}:")
             try:
                 with open(LOG_FILE) as lf:
                     lines = lf.readlines()
-                    for line in lines[-20:]:
+                    for line in lines[-30:]:
                         print("  ", line.rstrip())
             except Exception:
                 pass
             sys.exit(1)
         if is_port_open():
             log.close()
-            print(f"   Server is up (PID {proc.pid})")
+            print(f"   Server is up on port {PORT}.")
             return
+
     log.close()
-    print(f"ERROR: Server did not respond on port {PORT} after 15s.")
+    print(f"ERROR: Server did not respond on port {PORT} after 20s.")
     print(f"       Check {LOG_FILE} for details.")
     sys.exit(1)
 
