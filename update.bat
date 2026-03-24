@@ -38,18 +38,12 @@ echo ^>^>^> Building frontend...
 npm run build --prefix frontend
 if errorlevel 1 ( echo ERROR: frontend build failed & pause & exit /b 1 )
 
-:: ── Kill server on port 8765 (uvicorn runs as python.exe, kill by port) ───────
-echo ^>^>^> Stopping existing server...
-for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8765 " ^| findstr "LISTENING"') do (
-    echo    Killing PID %%a on port 8765
-    taskkill /f /pid %%a >nul 2>&1
-)
-
-:: ── Start server in new window ────────────────────────────────────────────────
-echo ^>^>^> Starting server...
-start "video-encoder" "%~dp0start.bat"
+:: ── Restart server ────────────────────────────────────────────────────────────
+echo ^>^>^> Restarting server...
+python server_service.py restart
+if errorlevel 1 ( echo ERROR: server failed to restart & pause & exit /b 1 )
 
 echo.
-echo Update complete^^! Server starting in a new window.
+echo Update complete. Server is running.
 echo   http://localhost:8765
 echo.
