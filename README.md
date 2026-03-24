@@ -77,11 +77,7 @@ Pulls latest code, reinstalls Python and npm dependencies if changed, rebuilds t
 update.bat
 ```
 
-Same as above — pulls, reinstalls dependencies, rebuilds frontend. Then restart manually:
-
-```bat
-start.bat
-```
+Pulls latest code, reinstalls Python and npm dependencies if changed, rebuilds the frontend, kills any running server process, and starts it again in a new window automatically.
 
 ---
 
