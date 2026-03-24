@@ -31,7 +31,7 @@ if errorlevel 1 ( echo ERROR: pip install failed & pause & exit /b 1 )
 
 :: ── Frontend ──────────────────────────────────────────────────────────────────
 echo ^>^>^> Installing frontend dependencies...
-npm install --prefix frontend --silent
+npm install --prefix frontend
 if errorlevel 1 ( echo ERROR: npm install failed & pause & exit /b 1 )
 
 echo ^>^>^> Building frontend...
@@ -47,3 +47,4 @@ echo.
 echo Update complete. Server is running.
 echo   http://localhost:8765
 echo.
+pause
