@@ -9,7 +9,6 @@ git pull
 if errorlevel 1 ( echo ERROR: git pull failed & exit /b 1 )
 
 :: ── Python venv ───────────────────────────────────────────────────────────────
-:: Recreate venv if broken or Python version changed
 set VENV_OK=0
 
 if exist "venv\Scripts\python.exe" (
@@ -42,8 +41,15 @@ echo ^>^>^> Building frontend...
 npm run build --prefix frontend
 if errorlevel 1 ( echo ERROR: frontend build failed & exit /b 1 )
 
-:: ── Done ──────────────────────────────────────────────────────────────────────
+:: ── Restart server ────────────────────────────────────────────────────────────
+echo ^>^>^> Stopping existing server...
+taskkill /f /fi "WINDOWTITLE eq video-encoder" >nul 2>&1
+taskkill /f /im uvicorn.exe >nul 2>&1
+
+echo ^>^>^> Starting server...
+start "video-encoder" cmd /k "cd /d "%~dp0" && call venv\Scripts\activate.bat && uvicorn encoder.main:app --host 0.0.0.0 --port 8765"
+
 echo.
-echo Update complete. Restart the server:
-echo   start.bat
+echo Update complete. Server restarted in a new window.
+echo   http://localhost:8765
 echo.
