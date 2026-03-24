@@ -47,7 +47,7 @@ taskkill /f /fi "WINDOWTITLE eq video-encoder" >nul 2>&1
 taskkill /f /im uvicorn.exe >nul 2>&1
 
 echo ^>^>^> Starting server...
-start "video-encoder" cmd /k "%~dp0start.bat"
+start "video-encoder" /d "%~dp0" cmd /k start.bat
 
 echo.
 echo Update complete. Server restarted in a new window.
