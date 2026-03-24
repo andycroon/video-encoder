@@ -63,21 +63,11 @@ All other audio codecs (AAC, FLAC, copy) use ffmpeg directly.
 
 ## Updating
 
-### Linux / macOS
-
 ```bash
 ./update.sh
 ```
 
-Pulls latest code, reinstalls Python and npm dependencies if changed, rebuilds the frontend, and restarts the service. Recreates the Python venv automatically if the Python version changed.
-
-### Windows
-
-```bat
-update.bat
-```
-
-Pulls latest code, recreates the Python venv if the Python version changed, reinstalls Python and npm dependencies, rebuilds the frontend, kills any running server process, and starts it again in a new window automatically.
+Pulls the latest code, reinstalls Python and npm dependencies if changed, rebuilds the frontend, and restarts the service. Recreates the Python venv automatically if the Python version changed.
 
 ---
 
