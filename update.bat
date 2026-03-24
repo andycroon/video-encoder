@@ -41,7 +41,13 @@ if errorlevel 1 ( echo ERROR: frontend build failed & pause & exit /b 1 )
 :: ── Restart server ────────────────────────────────────────────────────────────
 echo ^>^>^> Restarting server...
 python server_service.py restart
-if errorlevel 1 ( echo ERROR: server failed to restart & pause & exit /b 1 )
+if errorlevel 1 (
+    echo.
+    echo ERROR: server failed to start. Check server.log for details:
+    echo   %~dp0server.log
+    pause
+    exit /b 1
+)
 
 echo.
 echo Update complete. Server is running.

@@ -5,11 +5,14 @@ Used by update.bat and install.bat for reliable server lifecycle.
 import sys
 import os
 import subprocess
-import signal
+import time
+import socket
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PID_FILE = os.path.join(SCRIPT_DIR, "server.pid")
+LOG_FILE = os.path.join(SCRIPT_DIR, "server.log")
 UVICORN = os.path.join(SCRIPT_DIR, "venv", "Scripts", "uvicorn.exe")
+PORT = 8765
 
 
 def read_pid():
@@ -36,6 +39,14 @@ def is_running(pid):
         return False
 
 
+def is_port_open():
+    try:
+        with socket.create_connection(("127.0.0.1", PORT), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 def stop():
     pid = read_pid()
     if pid and is_running(pid):
@@ -54,6 +65,8 @@ def stop():
     )
     if os.path.exists(PID_FILE):
         os.remove(PID_FILE)
+    # Give Windows time to release the port
+    time.sleep(1)
 
 
 def start():
@@ -61,14 +74,40 @@ def start():
         print(f"ERROR: uvicorn not found at {UVICORN}")
         sys.exit(1)
 
+    log = open(LOG_FILE, "w")
     proc = subprocess.Popen(
-        [UVICORN, "encoder.main:app", "--host", "0.0.0.0", "--port", "8765"],
+        [UVICORN, "encoder.main:app", "--host", "0.0.0.0", "--port", str(PORT)],
         cwd=SCRIPT_DIR,
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
+        stdout=log,
+        stderr=log,
+        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
     )
     with open(PID_FILE, "w") as f:
         f.write(str(proc.pid))
-    print(f"   Server started (PID {proc.pid})")
+    print(f"   Waiting for server (PID {proc.pid}) to come up...")
+
+    # Wait up to 15s for the server to accept connections
+    for i in range(15):
+        time.sleep(1)
+        if proc.poll() is not None:
+            log.close()
+            print(f"ERROR: Server process exited early. Last log lines:")
+            try:
+                with open(LOG_FILE) as lf:
+                    lines = lf.readlines()
+                    for line in lines[-20:]:
+                        print("  ", line.rstrip())
+            except Exception:
+                pass
+            sys.exit(1)
+        if is_port_open():
+            log.close()
+            print(f"   Server is up (PID {proc.pid})")
+            return
+    log.close()
+    print(f"ERROR: Server did not respond on port {PORT} after 15s.")
+    print(f"       Check {LOG_FILE} for details.")
+    sys.exit(1)
 
 
 def status():
