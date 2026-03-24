@@ -2,22 +2,12 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-:: If called with --run, skip the pull and do the actual update
-if "%1"=="--run" goto :do_update
-
-:: ── Step 1: Pull first, then re-launch the updated script ────────────────────
+:: ── Pull ──────────────────────────────────────────────────────────────────────
 echo ^>^>^> Pulling latest changes...
 git pull
 if errorlevel 1 ( echo ERROR: git pull failed & pause & exit /b 1 )
 
-echo ^>^>^> Restarting with updated script...
-cmd /c ""%~f0" --run"
-exit /b
-
-:: ── Step 2: Actual update (runs from updated script) ─────────────────────────
-:do_update
-
-echo ^>^>^> Checking Python environment...
+:: ── Python venv ───────────────────────────────────────────────────────────────
 set VENV_OK=0
 if exist "venv\Scripts\python.exe" (
     for /f "tokens=*" %%v in ('"venv\Scripts\python.exe" --version 2^>^&1') do set VENV_PY=%%v
@@ -39,6 +29,7 @@ call "venv\Scripts\activate.bat"
 pip install -e . -q
 if errorlevel 1 ( echo ERROR: pip install failed & pause & exit /b 1 )
 
+:: ── Frontend ──────────────────────────────────────────────────────────────────
 echo ^>^>^> Installing frontend dependencies...
 npm install --prefix frontend --silent
 if errorlevel 1 ( echo ERROR: npm install failed & pause & exit /b 1 )
@@ -47,16 +38,18 @@ echo ^>^>^> Building frontend...
 npm run build --prefix frontend
 if errorlevel 1 ( echo ERROR: frontend build failed & pause & exit /b 1 )
 
+:: ── Kill server on port 8765 (uvicorn runs as python.exe, kill by port) ───────
 echo ^>^>^> Stopping existing server...
-taskkill /f /fi "WINDOWTITLE eq video-encoder" >nul 2>&1
-taskkill /f /im uvicorn.exe >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8765 " ^| findstr "LISTENING"') do (
+    echo    Killing PID %%a on port 8765
+    taskkill /f /pid %%a >nul 2>&1
+)
 
+:: ── Start server in new window ────────────────────────────────────────────────
 echo ^>^>^> Starting server...
-powershell -NoProfile -Command "Start-Process -FilePath '%~dp0start.bat'"
-if errorlevel 1 ( echo ERROR: failed to launch server & pause & exit /b 1 )
+start "video-encoder" "%~dp0start.bat"
 
 echo.
-echo Update complete. Server is starting.
+echo Update complete^^! Server starting in a new window.
 echo   http://localhost:8765
 echo.
-pause
