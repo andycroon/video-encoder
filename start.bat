@@ -4,4 +4,4 @@ if not exist "venv\Scripts\activate.bat" (
     exit /b 1
 )
 call venv\Scripts\activate.bat
-uvicorn encoder.main:app --port 8765 %*
+uvicorn encoder.main:app --host 0.0.0.0 --port 8765 %*

@@ -47,7 +47,7 @@ taskkill /f /fi "WINDOWTITLE eq video-encoder" >nul 2>&1
 taskkill /f /im uvicorn.exe >nul 2>&1
 
 echo ^>^>^> Starting server...
-start "video-encoder" cmd /k "cd /d "%~dp0" && call venv\Scripts\activate.bat && uvicorn encoder.main:app --host 0.0.0.0 --port 8765"
+start "video-encoder" cmd /k "%~dp0start.bat"
 
 echo.
 echo Update complete. Server restarted in a new window.
