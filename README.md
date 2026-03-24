@@ -77,7 +77,7 @@ Pulls latest code, reinstalls Python and npm dependencies if changed, rebuilds t
 update.bat
 ```
 
-Pulls latest code, reinstalls Python and npm dependencies if changed, rebuilds the frontend, kills any running server process, and starts it again in a new window automatically.
+Pulls latest code, recreates the Python venv if the Python version changed, reinstalls Python and npm dependencies, rebuilds the frontend, kills any running server process, and starts it again in a new window automatically.
 
 ---
 
