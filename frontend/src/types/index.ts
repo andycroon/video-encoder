@@ -43,6 +43,8 @@ export interface Profile {
     crf_max: number;
     crf_start: number;
     audio_codec: string;
+    subtitle_mode: 'none' | 'extract';
+    tesseract_lang: string;
     x264_params: Record<string, string>;
   };
 }

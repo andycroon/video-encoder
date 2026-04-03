@@ -53,6 +53,7 @@ from encoder.ffmpeg import FfmpegError, escape_vmaf_path, run_ffmpeg
 # ---------------------------------------------------------------------------
 
 FFMPEG: str = shutil.which("ffmpeg") or "C:/ffmpeg/ffmpeg.exe"
+FFPROBE: str = shutil.which("ffprobe") or "C:/ffmpeg/ffprobe.exe"
 
 VMAF_MODEL: Path = Path(__file__).parent.parent.parent / "assets" / "vmaf_v0.6.1.json"
 
@@ -252,6 +253,82 @@ def _transcode_audio(source_path: Path, output_path: Path, codec: str = "eac3", 
         _run_ffmpeg_cancellable(cmd, cancel_event, on_progress=on_progress)
     except FfmpegError as e:
         raise PipelineError(f"Audio transcode failed: {e}") from e
+
+
+def _extract_subtitles(
+    source_path: Path,
+    subtitle_dir: Path,
+    tesseract_lang: str = "eng",
+    cancel_event=None,
+    on_progress=None,
+) -> list[tuple[Path, str]]:
+    """Extract PGS subtitle streams from source and OCR-convert to SRT.
+
+    Returns list of (srt_path, language_tag) for each successfully converted stream.
+    Streams that fail conversion are warned and skipped — not a fatal error.
+    """
+    import json as _json
+    import sys
+
+    probe_cmd = [
+        FFPROBE, "-v", "quiet",
+        "-print_format", "json",
+        "-show_streams", "-select_streams", "s",
+        str(source_path),
+    ]
+    result = subprocess.run(probe_cmd, capture_output=True, text=True)
+    try:
+        streams = _json.loads(result.stdout).get("streams", [])
+    except (_json.JSONDecodeError, AttributeError):
+        streams = []
+
+    if not streams:
+        if on_progress:
+            on_progress("[SubtitleExtract] No subtitle streams found")
+        return []
+
+    subtitle_dir.mkdir(parents=True, exist_ok=True)
+    srt_files: list[tuple[Path, str]] = []
+
+    for i, stream in enumerate(streams):
+        _check_cancel(cancel_event)
+        lang = (stream.get("tags") or {}).get("language") or "und"
+        sup_file = subtitle_dir / f"subtitle_{i}_{lang}.sup"
+        srt_file = subtitle_dir / f"subtitle_{i}_{lang}.srt"
+
+        # Use the stream's own language tag for OCR; fall back to configured default
+        # for unknown streams. Tesseract language codes match ISO 639-2 for most
+        # languages (eng, fra, deu, nld, spa, ita, jpn, kor, etc.).
+        ocr_lang = lang if lang != "und" else tesseract_lang
+
+        if on_progress:
+            on_progress(f"[SubtitleExtract] Extracting stream {i} ({lang})...")
+        subprocess.run(
+            [FFMPEG, "-y", "-v", "quiet", "-i", str(source_path), "-map", f"0:s:{i}", str(sup_file)],
+            check=False,
+        )
+
+        if not sup_file.exists() or sup_file.stat().st_size == 0:
+            if on_progress:
+                on_progress(f"[SubtitleExtract] Stream {i} ({lang}): extraction empty, skipping")
+            continue
+
+        if on_progress:
+            on_progress(f"[SubtitleExtract] Converting stream {i} ({lang}) via OCR ({ocr_lang})...")
+        subprocess.run(
+            [sys.executable, "-m", "pgsrip", "-l", ocr_lang, str(sup_file)],
+            check=False,
+        )
+
+        if srt_file.exists():
+            srt_files.append((srt_file, lang))
+            if on_progress:
+                on_progress(f"[SubtitleExtract] Stream {i} ({lang}): OK -> {srt_file.name}")
+        else:
+            if on_progress:
+                on_progress(f"[SubtitleExtract] Stream {i} ({lang}): OCR failed, skipping")
+
+    return srt_files
 
 
 def _encode_chunk_x264(
@@ -457,15 +534,26 @@ def _concat_chunks(concat_list_path: Path, output_path: Path, on_progress=None) 
         raise PipelineError(f"Concat failed: {e}") from e
 
 
-def _mux_video_audio(video_path: Path, audio_path: Path, output_path: Path, on_progress=None) -> None:
-    """Mux video and audio streams into final MKV."""
-    cmd = [
-        FFMPEG, "-y",
-        "-i", str(video_path),
-        "-i", str(audio_path),
-        "-c:v", "copy", "-c:a", "copy",
-        str(output_path),
-    ]
+def _mux_video_audio(
+    video_path: Path,
+    audio_path: Path,
+    output_path: Path,
+    subtitle_files: list[tuple[Path, str]] | None = None,
+    on_progress=None,
+) -> None:
+    """Mux video, audio, and optional SRT subtitles into final MKV."""
+    cmd = [FFMPEG, "-y", "-i", str(video_path), "-i", str(audio_path)]
+    for srt_path, _lang in (subtitle_files or []):
+        cmd += ["-i", str(srt_path)]
+    cmd += ["-map", "0:v:0", "-map", "1:a:0"]
+    for i in range(len(subtitle_files or [])):
+        cmd += ["-map", f"{i + 2}:s:0"]
+    cmd += ["-c:v", "copy", "-c:a", "copy"]
+    if subtitle_files:
+        cmd += ["-c:s", "copy"]
+        for i, (_srt_path, lang) in enumerate(subtitle_files):
+            cmd += [f"-metadata:s:s:{i}", f"language={lang}"]
+    cmd.append(str(output_path))
     try:
         _run_ffmpeg_cancellable(cmd, on_progress=on_progress)
     except FfmpegError as e:
@@ -474,7 +562,7 @@ def _mux_video_audio(video_path: Path, audio_path: Path, output_path: Path, on_p
 
 def _cleanup(temp_dir: Path) -> None:
     """Remove CHUNKS, ENCODED, and TEMP subdirectories under temp_dir."""
-    for subdir in ["chunks", "encoded", "intermediate"]:
+    for subdir in ["chunks", "encoded", "intermediate", "subtitles"]:
         path = temp_dir / subdir
         if path.exists():
             shutil.rmtree(path, ignore_errors=True)
@@ -540,6 +628,7 @@ async def run_pipeline(
     chunks_dir = temp_dir / "chunks"
     encoded_dir = temp_dir / "encoded"
     intermediate_dir = temp_dir / "intermediate"
+    subtitle_dir = temp_dir / "subtitles"
 
     for d in [output_dir, chunks_dir, encoded_dir, intermediate_dir]:
         d.mkdir(parents=True, exist_ok=True)
@@ -615,6 +704,9 @@ async def run_pipeline(
 
         _check_cancel(cancel_event)
 
+        # subtitle_files is built in Step 4b; initialised here so it is always defined
+        subtitle_files: list[tuple[Path, str]] = []
+
         # Step 4: Audio transcode
         audio_codec = config.get("audio_codec", "eac3")
         _flags, audio_ext = AUDIO_CODECS[audio_codec]
@@ -630,6 +722,30 @@ async def run_pipeline(
         else:
             _emit("stage", {"name": "audio_transcode"})
             _log("Resuming: AudioTranscode already done, skipping")
+
+        _check_cancel(cancel_event)
+
+        # Step 4b: Subtitle extract (skipped when subtitle_mode != "extract")
+        subtitle_mode = config.get("subtitle_mode", "none")
+        if subtitle_mode == "extract":
+            tesseract_lang = config.get("tesseract_lang", "eng")
+            if "SubtitleExtract" not in completed_steps:
+                _emit("stage", {"name": "subtitle_extract"})
+                step_id = await create_step(db_path, job_id, "SubtitleExtract")
+                t0 = time.monotonic()
+                subtitle_files = _extract_subtitles(
+                    source_path, subtitle_dir, tesseract_lang,
+                    cancel_event=cancel_event, on_progress=_log,
+                )
+                await update_step(db_path, step_id, "DONE")
+                print(f"[SubtitleExtract] {len(subtitle_files)} tracks, done ({time.monotonic() - t0:.0f}s)")
+            else:
+                _emit("stage", {"name": "subtitle_extract"})
+                _log("Resuming: SubtitleExtract already done, scanning for SRT files")
+                subtitle_files = (
+                    [(p, "_".join(p.stem.split("_")[2:])) for p in sorted(subtitle_dir.glob("subtitle_*.srt"))]
+                    if subtitle_dir.exists() else []
+                )
 
         _check_cancel(cancel_event)
 
@@ -849,7 +965,7 @@ async def run_pipeline(
             print("[Mux] Muxing video and audio...")
             t0 = time.monotonic()
             output_mkv = output_dir / (source_path.stem + ".mkv")
-            _mux_video_audio(concat_mp4, audio_file, output_mkv, on_progress=_log)
+            _mux_video_audio(concat_mp4, audio_file, output_mkv, subtitle_files=subtitle_files, on_progress=_log)
             await update_step(db_path, step_id, "DONE")
             print(f"[Mux] done ({time.monotonic() - t0:.0f}s)")
         else:

@@ -20,7 +20,8 @@ from encoder.sse import event_bus
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
+_INSTALL_DIR = Path(__file__).resolve().parent.parent.parent
+DB_PATH = os.environ.get("ENCODER_DB") or str(_INSTALL_DIR / "encoder.db")
 
 
 def _utcnow_str() -> str:
@@ -98,8 +99,8 @@ class Scheduler:
         stored_config = job["config"] if isinstance(job["config"], dict) else _json.loads(job["config"])
         config = {**DEFAULT_CONFIG, **stored_config}
 
-        output_dir = Path(settings.get("output_path") or "output")
-        temp_dir = Path(settings.get("temp_path") or "temp") / f"job_{job_id}"
+        output_dir = Path(settings.get("output_path") or str(_INSTALL_DIR / "output"))
+        temp_dir = Path(settings.get("temp_path") or str(_INSTALL_DIR / "temp")) / f"job_{job_id}"
 
         # Disk space preflight: warn if available < 3x source size
         source = Path(job["source_path"])

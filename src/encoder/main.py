@@ -39,7 +39,8 @@ from encoder.scheduler import Scheduler
 from encoder.sse import event_bus
 from encoder.watcher import WatchFolder
 
-DB_PATH = os.environ.get("ENCODER_DB", "encoder.db")
+_INSTALL_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.environ.get("ENCODER_DB") or os.path.join(_INSTALL_DIR, "encoder.db")
 
 
 @asynccontextmanager
@@ -406,7 +407,13 @@ async def browse_filesystem(path: str = ""):
 
     entries = []
     try:
-        items = sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+        def _sort_key(x):
+            try:
+                return (not x.is_dir(), x.name.lower())
+            except OSError:
+                return (True, x.name.lower())
+
+        items = sorted(p.iterdir(), key=_sort_key)
         for item in items:
             try:
                 is_dir = item.is_dir()
@@ -428,7 +435,7 @@ async def browse_filesystem(path: str = ""):
                             "size": st.st_size,
                             "modified_at": datetime.fromtimestamp(st.st_mtime).isoformat(),
                         })
-            except PermissionError:
+            except OSError:
                 continue
     except PermissionError:
         raise HTTPException(status_code=403, detail="Permission denied")

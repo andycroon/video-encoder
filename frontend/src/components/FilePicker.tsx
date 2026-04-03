@@ -50,8 +50,8 @@ export default function FilePicker({ open, onClose, onSelect, initialPath, type 
       setPath(result.path);
       setParent(result.parent);
       setEntries(result.entries);
-    } catch {
-      setError('Could not read directory');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read directory');
     } finally {
       setLoading(false);
     }

@@ -6,7 +6,7 @@ import * as profilesApi from '../api/profiles';
 
 const mockProfile = {
   id: 1, name: 'Default', is_default: true,
-  config: { vmaf_min: 96.2, vmaf_max: 97.6, crf_min: 16, crf_max: 20, crf_start: 17, audio_codec: 'eac3', x264_params: {} }
+  config: { vmaf_min: 96.2, vmaf_max: 97.6, crf_min: 16, crf_max: 20, crf_start: 17, audio_codec: 'eac3', subtitle_mode: 'none' as const, tesseract_lang: 'eng', x264_params: {} }
 };
 
 beforeEach(() => {

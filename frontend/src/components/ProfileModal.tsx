@@ -15,6 +15,8 @@ const DEFAULT_CONFIG: Profile['config'] = {
   vmaf_min: 96.2, vmaf_max: 97.6,
   crf_min: 16, crf_max: 20, crf_start: 17,
   audio_codec: 'eac3',
+  subtitle_mode: 'none' as 'none' | 'extract',
+  tesseract_lang: 'eng',
   x264_params: {
     partitions: 'i4x4+p8x8+b8x8', trellis: '2', deblock: '-3:-3',
     b_qfactor: '1', i_qfactor: '0.71', qcomp: '0.50',
@@ -234,6 +236,26 @@ export default function ProfileModal({ open, onClose }: Props) {
                 >
                   {AUDIO_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
+              </div>
+
+              <div>
+                <h3 className="text-xs uppercase tracking-widest text-neutral-500 mb-3 font-medium">Subtitles</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-neutral-500 block mb-1">Mode</label>
+                    <select
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-blue-500/60 transition-colors"
+                      value={form.config.subtitle_mode}
+                      onChange={e => setConfig('subtitle_mode', e.target.value as 'none' | 'extract')}
+                    >
+                      <option value="none">None (strip subtitles)</option>
+                      <option value="extract">Extract &amp; convert to SRT</option>
+                    </select>
+                  </div>
+                  {form.config.subtitle_mode === 'extract' && (
+                    <p className="text-xs text-neutral-500">All subtitle streams are extracted. Each stream is OCR'd using its own language tag automatically.</p>
+                  )}
+                </div>
               </div>
 
               {/* x264 params — key-value pair editor */}

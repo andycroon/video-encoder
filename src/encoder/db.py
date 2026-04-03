@@ -41,6 +41,8 @@ DEFAULT_PROFILE_CONFIG: dict = {
     "crf_max": 20,
     "crf_start": 17,
     "audio_codec": "eac3",
+    "subtitle_mode": "none",
+    "tesseract_lang": "eng",
     "x264_params": {
         "partitions": "i4x4+p8x8+b8x8",
         "trellis": "2",
@@ -271,14 +273,15 @@ async def get_job(path: str, job_id: int) -> dict | None:
 
 # Maps DB step_name -> SSE/UI stage name
 _STEP_TO_STAGE = {
-    "FFV1":           "ffv1_encode",
-    "SceneDetect":    "scene_detect",
-    "ChunkSplit":     "chunk_split",
-    "AudioTranscode": "audio_transcode",
-    "ChunkEncode":    "chunk_encode",
-    "Concat":         "merge",
-    "Mux":            "mux",
-    "Cleanup":        "cleanup",
+    "FFV1":            "ffv1_encode",
+    "SceneDetect":     "scene_detect",
+    "ChunkSplit":      "chunk_split",
+    "AudioTranscode":  "audio_transcode",
+    "SubtitleExtract": "subtitle_extract",
+    "ChunkEncode":     "chunk_encode",
+    "Concat":          "merge",
+    "Mux":             "mux",
+    "Cleanup":         "cleanup",
 }
 
 

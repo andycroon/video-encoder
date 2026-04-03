@@ -19,6 +19,13 @@ export interface BrowseResult {
 export async function browse(path: string = ''): Promise<BrowseResult> {
   const url = path ? `${BASE}/browse?path=${encodeURIComponent(path)}` : `${BASE}/browse`;
   const res = await authFetch(url);
-  if (!res.ok) throw new Error(`browse failed: ${res.status}`);
+  if (!res.ok) {
+    let detail = `Error ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
   return res.json();
 }
