@@ -268,7 +268,6 @@ def _extract_subtitles(
     Streams that fail conversion are warned and skipped — not a fatal error.
     """
     import json as _json
-    import sys
 
     probe_cmd = [
         FFPROBE, "-v", "quiet",
@@ -290,43 +289,98 @@ def _extract_subtitles(
     subtitle_dir.mkdir(parents=True, exist_ok=True)
     srt_files: list[tuple[Path, str]] = []
 
+    try:
+        from babelfish import Language as _BabelfishLang
+        from pgsrip import api as _pgsrip_api
+        from pgsrip.options import Options as _PgsripOptions
+        from pgsrip.sup import Sup as _Sup
+    except ImportError as e:
+        raise PipelineError(
+            f"Subtitle extraction requires pgsrip and babelfish: {e}. "
+            "Run: pip install pgsrip babelfish"
+        ) from e
+
     for i, stream in enumerate(streams):
         _check_cancel(cancel_event)
-        lang = (stream.get("tags") or {}).get("language") or "und"
-        sup_file = subtitle_dir / f"subtitle_{i}_{lang}.sup"
-        srt_file = subtitle_dir / f"subtitle_{i}_{lang}.srt"
+        lang_alpha3 = (stream.get("tags") or {}).get("language") or "und"
+        codec_name = stream.get("codec_name", "unknown")
 
-        # Use the stream's own language tag for OCR; fall back to configured default
-        # for unknown streams. Tesseract language codes match ISO 639-2 for most
-        # languages (eng, fra, deu, nld, spa, ita, jpn, kor, etc.).
-        ocr_lang = lang if lang != "und" else tesseract_lang
+        # Convert alpha3 ('eng') to alpha2/IETF ('en') — pgsrip's MediaPath uses the
+        # second extension as a language code, e.g. subtitle_0.en.sup -> subtitle_0.en.srt
+        try:
+            ietf_lang = str(_BabelfishLang(lang_alpha3))
+        except Exception:
+            ietf_lang = "und"
+
+        sup_file = subtitle_dir / f"subtitle_{i}.{ietf_lang}.sup"
 
         if on_progress:
-            on_progress(f"[SubtitleExtract] Extracting stream {i} ({lang})...")
-        subprocess.run(
-            [FFMPEG, "-y", "-v", "quiet", "-i", str(source_path), "-map", f"0:s:{i}", str(sup_file)],
-            check=False,
+            on_progress(f"[SubtitleExtract] Extracting stream {i} ({lang_alpha3}, {codec_name})...")
+        extract_result = subprocess.run(
+            [FFMPEG, "-y", "-v", "error", "-i", str(source_path), "-map", f"0:s:{i}", "-c:s", "copy", str(sup_file)],
+            capture_output=True, text=True,
         )
 
         if not sup_file.exists() or sup_file.stat().st_size == 0:
+            stderr = extract_result.stderr.strip()
             if on_progress:
-                on_progress(f"[SubtitleExtract] Stream {i} ({lang}): extraction empty, skipping")
+                on_progress(
+                    f"[SubtitleExtract] Stream {i} ({lang_alpha3}): extraction produced no data"
+                    + (f" — {stderr}" if stderr else " (likely not a PGS/bitmap track)")
+                )
             continue
 
         if on_progress:
-            on_progress(f"[SubtitleExtract] Converting stream {i} ({lang}) via OCR ({ocr_lang})...")
-        subprocess.run(
-            [sys.executable, "-m", "pgsrip", "-l", ocr_lang, str(sup_file)],
-            check=False,
-        )
+            on_progress(f"[SubtitleExtract] OCR-converting stream {i} ({lang_alpha3}), this may take several minutes...")
+        try:
+            import threading as _threading
 
-        if srt_file.exists():
-            srt_files.append((srt_file, lang))
+            options = _PgsripOptions(overwrite=True)
+            media = _Sup(str(sup_file))
+
+            # Run OCR in a background thread so we can emit heartbeat log lines
+            # while it works. Without this, the log shows "no output yet" for the
+            # entire OCR duration because pgsrip blocks with no callbacks.
+            srt_result: list[Path] = []
+            ocr_exc: list[BaseException] = []
+            ocr_done = _threading.Event()
+
+            def _ocr_worker() -> None:
+                try:
+                    for pgs in media.get_pgs_medias(options):
+                        _pgsrip_api.rip_pgs(pgs, options)
+                        srt_result.append(Path(str(pgs.srt_path)))
+                except BaseException as e:  # noqa: BLE001
+                    ocr_exc.append(e)
+                finally:
+                    ocr_done.set()
+
+            _threading.Thread(target=_ocr_worker, daemon=True).start()
+
+            elapsed = 0
+            heartbeat = 15
+            while not ocr_done.wait(timeout=heartbeat):
+                elapsed += heartbeat
+                if cancel_event and cancel_event.is_set():
+                    ocr_done.wait()  # let OCR finish before propagating cancel
+                    break
+                if on_progress:
+                    on_progress(f"[SubtitleExtract] OCR in progress ({elapsed}s elapsed)...")
+
+            if ocr_exc:
+                raise ocr_exc[0]
+
+            srt_path = srt_result[0] if srt_result else None
+            if srt_path and srt_path.exists():
+                srt_files.append((srt_path, lang_alpha3))
+                if on_progress:
+                    on_progress(f"[SubtitleExtract] Stream {i} ({lang_alpha3}): OK -> {srt_path.name}")
+            else:
+                if on_progress:
+                    on_progress(f"[SubtitleExtract] Stream {i} ({lang_alpha3}): OCR produced no output (tesseract may be missing or language data not installed)")
+        except Exception as e:
             if on_progress:
-                on_progress(f"[SubtitleExtract] Stream {i} ({lang}): OK -> {srt_file.name}")
-        else:
-            if on_progress:
-                on_progress(f"[SubtitleExtract] Stream {i} ({lang}): OCR failed, skipping")
+                on_progress(f"[SubtitleExtract] Stream {i} ({lang_alpha3}): OCR error: {e}")
 
     return srt_files
 
@@ -653,7 +707,38 @@ async def run_pipeline(
 
         _check_cancel(cancel_event)
 
-        # Step 1: FFV1 encode
+        # Step 1: Subtitle extract (runs first — reads only source_path, fast to fail)
+        subtitle_files: list[tuple[Path, str]] = []
+        subtitle_mode = config.get("subtitle_mode", "none")
+        if subtitle_mode == "extract":
+            tesseract_lang = config.get("tesseract_lang", "eng")
+            if "SubtitleExtract" not in completed_steps:
+                _emit("stage", {"name": "subtitle_extract"})
+                step_id = await create_step(db_path, job_id, "SubtitleExtract")
+                t0 = time.monotonic()
+                subtitle_files = _extract_subtitles(
+                    source_path, subtitle_dir, tesseract_lang,
+                    cancel_event=cancel_event, on_progress=_log,
+                )
+                await update_step(db_path, step_id, "DONE")
+                print(f"[SubtitleExtract] {len(subtitle_files)} tracks, done ({time.monotonic() - t0:.0f}s)")
+            else:
+                _emit("stage", {"name": "subtitle_extract"})
+                _log("Resuming: SubtitleExtract already done, scanning for SRT files")
+                if subtitle_dir.exists():
+                    for p in sorted(subtitle_dir.glob("subtitle_*.*.srt")):
+                        # Filename: subtitle_0.en.srt -> stem 'subtitle_0.en' -> last part is IETF lang
+                        ietf_lang = p.stem.rsplit(".", 1)[-1]
+                        try:
+                            from babelfish import Language as _BabelfishLang
+                            lang_alpha3 = _BabelfishLang.fromietf(ietf_lang).alpha3
+                        except Exception:
+                            lang_alpha3 = ietf_lang
+                        subtitle_files.append((p, lang_alpha3))
+
+        _check_cancel(cancel_event)
+
+        # Step 2: FFV1 encode
         if "FFV1" not in completed_steps:
             _emit("stage", {"name": "ffv1_encode"})
             step_id = await create_step(db_path, job_id, "FFV1")
@@ -704,9 +789,6 @@ async def run_pipeline(
 
         _check_cancel(cancel_event)
 
-        # subtitle_files is built in Step 4b; initialised here so it is always defined
-        subtitle_files: list[tuple[Path, str]] = []
-
         # Step 4: Audio transcode
         audio_codec = config.get("audio_codec", "eac3")
         _flags, audio_ext = AUDIO_CODECS[audio_codec]
@@ -722,30 +804,6 @@ async def run_pipeline(
         else:
             _emit("stage", {"name": "audio_transcode"})
             _log("Resuming: AudioTranscode already done, skipping")
-
-        _check_cancel(cancel_event)
-
-        # Step 4b: Subtitle extract (skipped when subtitle_mode != "extract")
-        subtitle_mode = config.get("subtitle_mode", "none")
-        if subtitle_mode == "extract":
-            tesseract_lang = config.get("tesseract_lang", "eng")
-            if "SubtitleExtract" not in completed_steps:
-                _emit("stage", {"name": "subtitle_extract"})
-                step_id = await create_step(db_path, job_id, "SubtitleExtract")
-                t0 = time.monotonic()
-                subtitle_files = _extract_subtitles(
-                    source_path, subtitle_dir, tesseract_lang,
-                    cancel_event=cancel_event, on_progress=_log,
-                )
-                await update_step(db_path, step_id, "DONE")
-                print(f"[SubtitleExtract] {len(subtitle_files)} tracks, done ({time.monotonic() - t0:.0f}s)")
-            else:
-                _emit("stage", {"name": "subtitle_extract"})
-                _log("Resuming: SubtitleExtract already done, scanning for SRT files")
-                subtitle_files = (
-                    [(p, "_".join(p.stem.split("_")[2:])) for p in sorted(subtitle_dir.glob("subtitle_*.srt"))]
-                    if subtitle_dir.exists() else []
-                )
 
         _check_cancel(cancel_event)
 

@@ -1,8 +1,8 @@
 import type { StageData } from '../types';
 
 const ALL_STAGES = [
-  'ffv1_encode', 'scene_detect', 'chunk_split', 'audio_transcode',
-  'subtitle_extract', 'chunk_encode', 'merge', 'mux', 'cleanup',
+  'subtitle_extract', 'ffv1_encode', 'scene_detect', 'chunk_split', 'audio_transcode',
+  'chunk_encode', 'merge', 'mux', 'cleanup',
 ];
 
 import { STAGE_LABELS } from '../constants/stageLabels';
