@@ -40,6 +40,9 @@ fi
 
 echo ">>> Installing Python dependencies..."
 source "$VENV/bin/activate"
+# Install headless OpenCV before other deps so pgsrip/scenedetect don't
+# pull in opencv-python (which requires libGL, unavailable on headless servers)
+pip install -q opencv-python-headless
 pip install -e "$INSTALL_DIR" -q
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
