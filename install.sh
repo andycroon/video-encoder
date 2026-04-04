@@ -112,8 +112,10 @@ echo ">>> Creating data directories..."
 mkdir -p "$INSTALL_DIR/output" "$INSTALL_DIR/temp"
 
 # ── Frontend ───────────────────────────────────────────────────────────────
+echo ">>> Installing frontend dependencies..."
+npm install --prefix "$INSTALL_DIR/frontend" --silent
 echo ">>> Building frontend..."
-npm run build
+npm run build --prefix "$INSTALL_DIR/frontend"
 
 chmod +x "$INSTALL_DIR/start.sh"
 
