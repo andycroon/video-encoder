@@ -144,6 +144,12 @@ class Scheduler:
                 "message": str(exc),
                 "step": "pipeline",
             })
+            # Ensure job is marked FAILED and error is visible in the UI log
+            try:
+                await update_job_status(self.db_path, job_id, "FAILED")
+                await append_job_log(self.db_path, job_id, f"ERROR: {exc}")
+            except Exception:
+                pass
             raise
         finally:
             event_bus.close(job_id)

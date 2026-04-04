@@ -684,9 +684,6 @@ async def run_pipeline(
     intermediate_dir = temp_dir / "intermediate"
     subtitle_dir = temp_dir / "subtitles"
 
-    for d in [output_dir, chunks_dir, encoded_dir, intermediate_dir]:
-        d.mkdir(parents=True, exist_ok=True)
-
     intermediate = intermediate_dir / "intermediate.mov"
 
     # Resume gate: skip steps already completed in a previous run
@@ -703,6 +700,9 @@ async def run_pipeline(
         _log(f"Resuming job {job_id}: {len(completed_steps)} steps already done")
 
     try:
+        for d in [output_dir, chunks_dir, encoded_dir, intermediate_dir]:
+            d.mkdir(parents=True, exist_ok=True)
+
         await update_job_status(db_path, job_id, "RUNNING")
 
         _check_cancel(cancel_event)
