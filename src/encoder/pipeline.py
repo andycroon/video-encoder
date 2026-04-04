@@ -1048,9 +1048,12 @@ async def run_pipeline(
     finally:
         # Step 10: Cleanup — always, regardless of outcome
         _emit("stage", {"name": "cleanup"})
-        cleanup_step_id = await create_step(db_path, job_id, "Cleanup")
-        _cleanup(temp_dir)
-        await update_step(db_path, cleanup_step_id, "DONE")
+        try:
+            cleanup_step_id = await create_step(db_path, job_id, "Cleanup")
+            _cleanup(temp_dir)
+            await update_step(db_path, cleanup_step_id, "DONE")
+        except Exception:
+            _cleanup(temp_dir)
 
 
 # ---------------------------------------------------------------------------

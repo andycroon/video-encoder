@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ScrollToBottom from 'react-scroll-to-bottom';
 
 interface Props { log: string; defaultOpen?: boolean }
 
 export default function LogPanel({ log, defaultOpen = false }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
 
   return (
     <div>
