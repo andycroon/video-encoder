@@ -507,7 +507,12 @@ async def copy_files(body: dict):
         if dest_file.exists() and not overwrite:
             results.append({"path": p, "status": "conflict", "conflict_name": src.name})
             continue
-        shutil.copy2(str(src), str(dest_file))
+        try:
+            shutil.copy2(str(src), str(dest_file))
+        except OSError:
+            # copy2 copies metadata too — falls back to data-only copy for
+            # FUSE/SFTP mounts that don't support all metadata operations
+            shutil.copy(str(src), str(dest_file))
         results.append({"path": str(dest_file), "status": "ok"})
     return {"results": results}
 
