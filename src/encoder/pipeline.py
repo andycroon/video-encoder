@@ -295,6 +295,12 @@ def _extract_subtitles(
         from pgsrip.options import Options as _PgsripOptions
         from pgsrip.sup import Sup as _Sup
     except ImportError as e:
+        msg = str(e)
+        if "libGL" in msg or "libglib" in msg or "cannot open shared object" in msg:
+            raise PipelineError(
+                f"Subtitle extraction failed — missing system library: {e}. "
+                "Fix: sudo apt install -y libgl1 libglib2.0-0"
+            ) from e
         raise PipelineError(
             f"Subtitle extraction requires pgsrip and babelfish: {e}. "
             "Run: pip install pgsrip babelfish"

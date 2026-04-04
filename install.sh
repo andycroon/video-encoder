@@ -18,9 +18,9 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         exit 1
     fi
 
-    # Python and Tesseract — install only what's missing
+    # Python, Tesseract, and OpenCV runtime deps — install only what's missing
     MISSING_PKGS=()
-    for pkg in python3-full python3-pip tesseract-ocr; do
+    for pkg in python3-full python3-pip tesseract-ocr libgl1 libglib2.0-0; do
         dpkg -s "$pkg" &>/dev/null || MISSING_PKGS+=("$pkg")
     done
     if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
