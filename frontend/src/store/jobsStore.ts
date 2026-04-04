@@ -77,7 +77,11 @@ function applyEvent(job: Job, type: string, data: unknown): Job {
       return { ...job, log: lines.join('\n') };
     }
     case 'error': {
-      return { ...job, status: 'FAILED', currentStage: null, eta: null };
+      const d = data as { message?: string };
+      const errorLine = d.message ? `ERROR: ${d.message}` : 'ERROR: unknown error';
+      const lines = job.log ? job.log.split('\n') : [];
+      lines.push(errorLine);
+      return { ...job, status: 'FAILED', currentStage: null, eta: null, log: lines.join('\n') };
     }
     default:
       return job;
