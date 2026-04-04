@@ -45,7 +45,7 @@ pip install -e "$INSTALL_DIR" -q
 # pgsrip and babelfish are needed for subtitle extraction
 pip install -q pgsrip babelfish
 # Use headless OpenCV — the full build requires libGL which isn't present on servers
-pip uninstall -y opencv-python 2>/dev/null || true
+pip uninstall -y opencv-python opencv-python-headless 2>/dev/null || true
 pip install -q opencv-python-headless
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
