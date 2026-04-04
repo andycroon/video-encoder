@@ -7,6 +7,19 @@ INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo ">>> Pulling latest changes..."
 git -C "$INSTALL_DIR" pull
 
+# ── System dependencies (install any that are missing) ────────────────────────
+if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v apt &>/dev/null; then
+    MISSING_PKGS=()
+    for pkg in python3-full python3-pip tesseract-ocr libgl1 libglib2.0-0; do
+        dpkg -s "$pkg" &>/dev/null || MISSING_PKGS+=("$pkg")
+    done
+    if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
+        echo ">>> Installing missing system packages: ${MISSING_PKGS[*]}..."
+        sudo apt update -q
+        sudo apt install -y "${MISSING_PKGS[@]}"
+    fi
+fi
+
 # ── Python venv ────────────────────────────────────────────────────────────────
 # Recreate venv if Python version changed or venv is broken
 VENV="$INSTALL_DIR/venv"
