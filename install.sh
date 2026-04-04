@@ -104,10 +104,12 @@ python3 -m venv --clear "$INSTALL_DIR/venv"
 source "$INSTALL_DIR/venv/bin/activate"
 
 echo ">>> Installing Python dependencies..."
+pip install -e .
+# pgsrip and babelfish are needed for subtitle extraction
+pip install -q pgsrip babelfish
 # Use headless OpenCV — the full build requires libGL which isn't present on servers
 pip uninstall -y opencv-python 2>/dev/null || true
 pip install -q opencv-python-headless
-pip install -e .
 
 # ── Data directories ────────────────────────────────────────────────────────
 echo ">>> Creating data directories..."

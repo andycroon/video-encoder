@@ -8,7 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.9"
 dependencies = [
     "aiosqlite>=0.22,<0.23",
-    "scenedetect>=0.6.7,<0.7",
+    "scenedetect[opencv]>=0.6.7,<0.7",
     "fastapi>=0.111,<0.120",
     "uvicorn[standard]>=0.29,<0.35",
     "bcrypt>=4.0,<5",
