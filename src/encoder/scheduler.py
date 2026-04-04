@@ -102,9 +102,9 @@ class Scheduler:
         output_dir = Path(settings.get("output_path") or str(_INSTALL_DIR / "output"))
         temp_dir = Path(settings.get("temp_path") or str(_INSTALL_DIR / "temp")) / f"job_{job_id}"
 
-        # Disk space preflight: warn if available < 3x source size
+        # Disk space preflight
         source = Path(job["source_path"])
-        await _disk_preflight(source, output_dir, job_id, self.db_path)
+        await _disk_preflight(source, temp_dir, output_dir, job_id, self.db_path)
 
         cancel_event = threading.Event()
         self._cancel_events[job_id] = cancel_event
@@ -169,20 +169,35 @@ def _run_pipeline_sync(source_path, db_path, job_id, config, cancel_event, outpu
         loop.close()
 
 
-async def _disk_preflight(source: Path, output_dir: Path, job_id: int, db_path: str) -> None:
-    """Check available disk space. Emit warning log and SSE event if below 3x source size.
+async def _disk_preflight(source: Path, temp_dir: Path, output_dir: Path, job_id: int, db_path: str) -> None:
+    """Check disk space for both temp and output dirs.
 
-    Per user decision: emit warning but do NOT block the job — proceed regardless.
+    Temp dir needs ~10x source (FFV1 intermediate + chunks).
+    Output dir needs ~1x source.
+    Emits a warning log but does NOT block the job.
     """
     import shutil
     try:
         source_size = source.stat().st_size
-        check_dir = output_dir if output_dir.exists() else Path(".")
-        free = shutil.disk_usage(check_dir).free
-        if free < source_size * 3:
-            needed_gb = (source_size * 3) / (1024 ** 3)
-            free_gb = free / (1024 ** 3)
-            msg = f"WARN disk_preflight: need {needed_gb:.1f} GiB, have {free_gb:.1f} GiB"
+
+        checks = [
+            (temp_dir.parent if not temp_dir.exists() else temp_dir, source_size * 10, "temp"),
+            (output_dir if output_dir.exists() else output_dir.parent if output_dir.parent.exists() else Path("."), source_size, "output"),
+        ]
+
+        msgs = []
+        for check_dir, needed, label in checks:
+            try:
+                free = shutil.disk_usage(check_dir).free
+                if free < needed:
+                    needed_gb = needed / (1024 ** 3)
+                    free_gb = free / (1024 ** 3)
+                    msgs.append(f"{label}: need ~{needed_gb:.1f} GiB, have {free_gb:.1f} GiB free")
+            except OSError:
+                pass
+
+        if msgs:
+            msg = "WARN low disk space — " + "; ".join(msgs)
             logger.warning("Job %d: %s", job_id, msg)
             await append_job_log(db_path, job_id, msg)
             event_bus.publish(job_id, "warning", {"message": msg})
