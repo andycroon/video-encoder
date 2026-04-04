@@ -84,7 +84,7 @@ export default function JobCard({ job }: Props) {
       <VmafChart chunks={job.chunks} vmafMin={vmafMin} vmafMax={vmafMax} />
 
       {/* Log */}
-      <LogPanel log={job.log} />
+      <LogPanel log={job.log} defaultOpen={job.status === 'FAILED'} />
     </div>
   );
 }

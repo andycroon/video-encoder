@@ -683,6 +683,14 @@ export default function FileBrowser() {
           : await copyFiles([p], destination, overwrite);
         const fileConflicts = result.results.filter(r => r.status === 'conflict');
         if (fileConflicts.length > 0) conflicts.push(...fileConflicts.map(c => c.path));
+        const fileErrors = result.results.filter(r => r.status === 'error');
+        if (fileErrors.length > 0) {
+          const detail = fileErrors[0].detail ?? 'unknown error';
+          setOpError(`Failed on ${fileErrors[0].path.split(/[\\/]/).pop()}: ${detail}`);
+          setOpLoading(false);
+          setOpProgress(null);
+          return;
+        }
       } catch {
         setOpError(`Failed on: ${p.split(/[\\/]/).pop() ?? p}`);
         setOpLoading(false);

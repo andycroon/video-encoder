@@ -1037,8 +1037,14 @@ async def run_pipeline(
     except PipelineError as e:
         status = getattr(e, "status", "FAILED")
         await update_job_status(db_path, job_id, status)
+        await append_job_log(db_path, job_id, f"ERROR: {e}")
         if status != "CANCELLED":
             raise
+    except Exception as e:
+        await update_job_status(db_path, job_id, "FAILED")
+        import traceback as _tb
+        await append_job_log(db_path, job_id, f"ERROR: {e}\n{_tb.format_exc()}")
+        raise
     finally:
         # Step 10: Cleanup — always, regardless of outcome
         _emit("stage", {"name": "cleanup"})

@@ -9,8 +9,9 @@ export interface RenameResult {
 
 export interface FileOpEntry {
   path: string;
-  status: 'ok' | 'not_found' | 'conflict';
+  status: 'ok' | 'not_found' | 'conflict' | 'error';
   conflict_name?: string;
+  detail?: string;
 }
 
 export interface FileOpResult {

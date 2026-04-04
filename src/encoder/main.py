@@ -479,7 +479,11 @@ async def move_files(body: dict):
         if dest_file.exists() and not overwrite:
             results.append({"path": p, "status": "conflict", "conflict_name": src.name})
             continue
-        shutil.move(str(src), str(dest_file))
+        try:
+            shutil.move(str(src), str(dest_file))
+        except OSError as exc:
+            results.append({"path": p, "status": "error", "detail": str(exc)})
+            continue
         results.append({"path": str(dest_file), "status": "ok"})
     return {"results": results}
 
