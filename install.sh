@@ -5,6 +5,8 @@ INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Capture the real user even when the script is invoked via sudo
 REAL_USER="${SUDO_USER:-$(whoami)}"
 
+cd "$INSTALL_DIR"
+
 # ── Stop running service if present ────────────────────────────────────────
 if command -v systemctl &>/dev/null && systemctl is-active --quiet video-encoder 2>/dev/null; then
     echo ">>> Stopping running service..."
@@ -113,7 +115,7 @@ mkdir -p "$INSTALL_DIR/output" "$INSTALL_DIR/temp"
 
 # ── Frontend ───────────────────────────────────────────────────────────────
 echo ">>> Building frontend..."
-cd "$INSTALL_DIR" && npm run build
+npm run build
 
 chmod +x "$INSTALL_DIR/start.sh"
 
