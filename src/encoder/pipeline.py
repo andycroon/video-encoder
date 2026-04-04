@@ -26,6 +26,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -705,10 +706,13 @@ async def run_pipeline(
     if is_resuming:
         _log(f"Resuming job {job_id}: {len(completed_steps)} steps already done")
 
+    _pipeline_step = "init"
+
     try:
         for d in [output_dir, chunks_dir, encoded_dir, intermediate_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
+        _pipeline_step = "update_status(RUNNING)"
         await update_job_status(db_path, job_id, "RUNNING")
 
         _check_cancel(cancel_event)
@@ -719,6 +723,7 @@ async def run_pipeline(
         if subtitle_mode == "extract":
             tesseract_lang = config.get("tesseract_lang", "eng")
             if "SubtitleExtract" not in completed_steps:
+                _pipeline_step = "SubtitleExtract"
                 _emit("stage", {"name": "subtitle_extract"})
                 step_id = await create_step(db_path, job_id, "SubtitleExtract")
                 t0 = time.monotonic()
@@ -745,6 +750,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 2: FFV1 encode
+        _pipeline_step = "FFV1"
         if "FFV1" not in completed_steps:
             _emit("stage", {"name": "ffv1_encode"})
             step_id = await create_step(db_path, job_id, "FFV1")
@@ -760,6 +766,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 2: Scene detect
+        _pipeline_step = "SceneDetect"
         scene_threshold = config.get("scene_threshold", 27.0)
         if "SceneDetect" not in completed_steps:
             _emit("stage", {"name": "scene_detect"})
@@ -778,6 +785,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 3: Chunk split
+        _pipeline_step = "ChunkSplit"
         if "ChunkSplit" not in completed_steps:
             _emit("stage", {"name": "chunk_split"})
             step_id = await create_step(db_path, job_id, "ChunkSplit")
@@ -796,6 +804,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 4: Audio transcode
+        _pipeline_step = "AudioTranscode"
         audio_codec = config.get("audio_codec", "eac3")
         _flags, audio_ext = AUDIO_CODECS[audio_codec]
         audio_file = temp_dir / f"audio.{audio_ext}"
@@ -814,6 +823,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Steps 5-7: Per-chunk CRF+VMAF feedback loop (parallel when max_parallel_chunks > 1)
+        _pipeline_step = "ChunkEncode"
         max_parallel = config.get("max_parallel_chunks", 1)
         await set_job_total_chunks(db_path, job_id, len(chunks))
         _emit("stage", {"name": "chunk_encode", "total_chunks": len(chunks)})
@@ -1001,10 +1011,12 @@ async def run_pipeline(
         # Sort by name to maintain correct concat order
         encoded_chunks.sort(key=lambda p: p.name)
 
+        _pipeline_step = "ChunkEncode(finalize)"
         await update_step(db_path, chunk_step_id, "DONE")
         _check_cancel(cancel_event)
 
         # Step 8: Concat
+        _pipeline_step = "Concat"
         concat_mp4 = temp_dir / "concat.mp4"
         if "Concat" not in completed_steps:
             _emit("stage", {"name": "merge"})
@@ -1023,6 +1035,7 @@ async def run_pipeline(
         _check_cancel(cancel_event)
 
         # Step 9: Mux
+        _pipeline_step = "Mux"
         if "Mux" not in completed_steps:
             _emit("stage", {"name": "mux"})
             step_id = await create_step(db_path, job_id, "Mux")
@@ -1042,14 +1055,25 @@ async def run_pipeline(
 
     except PipelineError as e:
         status = getattr(e, "status", "FAILED")
-        await update_job_status(db_path, job_id, status)
-        await append_job_log(db_path, job_id, f"ERROR: {e}")
+        msg = f"ERROR in step '{_pipeline_step}': {e}"
+        print(msg, file=sys.stderr)
+        try:
+            await update_job_status(db_path, job_id, status)
+            await append_job_log(db_path, job_id, msg)
+        except Exception as db_err:
+            print(f"[pipeline] failed to write error to DB: {db_err}", file=sys.stderr)
         if status != "CANCELLED":
             raise
     except Exception as e:
-        await update_job_status(db_path, job_id, "FAILED")
         import traceback as _tb
-        await append_job_log(db_path, job_id, f"ERROR: {e}\n{_tb.format_exc()}")
+        msg = f"ERROR in step '{_pipeline_step}': {e}"
+        tb = _tb.format_exc()
+        print(f"{msg}\n{tb}", file=sys.stderr)
+        try:
+            await update_job_status(db_path, job_id, "FAILED")
+            await append_job_log(db_path, job_id, f"{msg}\n{tb}")
+        except Exception as db_err:
+            print(f"[pipeline] failed to write error to DB: {db_err}", file=sys.stderr)
         raise
     finally:
         # Step 10: Cleanup — always, regardless of outcome
