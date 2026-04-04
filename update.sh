@@ -2,6 +2,7 @@
 set -e
 
 INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+REAL_USER="${SUDO_USER:-$(whoami)}"
 
 # ── Pull ───────────────────────────────────────────────────────────────────────
 echo ">>> Pulling latest changes..."
@@ -55,6 +56,8 @@ npm run build --prefix "$INSTALL_DIR/frontend"
 # ── Service ────────────────────────────────────────────────────────────────────
 if command -v systemctl &>/dev/null; then
     if systemctl is-enabled --quiet video-encoder 2>/dev/null; then
+        echo ">>> Fixing ownership..."
+        sudo chown -R "$REAL_USER:$REAL_USER" "$INSTALL_DIR"
         echo ">>> Restarting service..."
         sudo systemctl restart video-encoder
 

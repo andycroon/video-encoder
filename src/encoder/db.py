@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import sqlite3
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -86,8 +87,25 @@ async def get_db(path: str) -> AsyncIterator:
         yield db
 
 
+def _fix_wal_permissions(path: str) -> None:
+    """Remove stale WAL/SHM files if they're not writable by the current process.
+
+    This happens when the service previously ran as a different user (e.g. root after
+    sudo ./update.sh), leaving -wal/-shm owned by that user.  Safe to remove on startup
+    because no connections are open yet; SQLite will recreate them as needed.
+    """
+    for suffix in ("-wal", "-shm"):
+        p = path + suffix
+        if os.path.exists(p) and not os.access(p, os.W_OK):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+
 async def init_db(path: str) -> None:
     """Create all tables and enable WAL mode. Safe to call repeatedly (CREATE IF NOT EXISTS)."""
+    _fix_wal_permissions(path)
     async with get_db(path) as db:
         for col_sql in [
             "ALTER TABLE jobs ADD COLUMN total_chunks INTEGER",
