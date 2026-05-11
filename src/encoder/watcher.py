@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 
-from encoder.db import create_job, get_settings, mark_file_seen, seen_file
+from encoder.db import create_job, get_profiles, get_settings, mark_file_seen, seen_file
 
 logger = logging.getLogger(__name__)
 
@@ -75,16 +75,20 @@ class WatchFolder:
             if not await self._is_stable(entry):
                 continue
 
-            # Enqueue
+            # Enqueue — start from the default profile so subtitle/x264 config flows through,
+            # then overlay current settings (settings is the source of truth for VMAF/CRF/audio).
             settings = await get_settings(self._db_path)
-            config_snapshot = {
+            profiles = await get_profiles(self._db_path)
+            default_profile = next((p for p in profiles if p["is_default"]), None)
+            config_snapshot: dict = dict(default_profile["config"]) if default_profile else {}
+            config_snapshot.update({
                 "vmaf_min": settings["vmaf_min"],
                 "vmaf_max": settings["vmaf_max"],
                 "crf_min":  settings["crf_min"],
                 "crf_max":  settings["crf_max"],
                 "crf_start": settings["crf_start"],
                 "audio_codec": settings["audio_codec"],
-            }
+            })
             job_id = await create_job(self._db_path, path_str, config_snapshot)
             await mark_file_seen(path_str, mtime, self._db_path)
             await self._scheduler.enqueue(job_id)
